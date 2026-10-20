@@ -129,7 +129,8 @@ class HwLayoutEngineTest {
         engine.onKeyDown(down(KeyEvent.KEYCODE_SHIFT_LEFT, time = 1000), false)
         assertEquals(HwKeyDecision.Type('Q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1100), false))
         engine.onKeyUp(up(KeyEvent.KEYCODE_SHIFT_LEFT, time = 1200))
-        assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1400), false))
+        // Past the multi-tap window, so this is a new letter and not the shifted "1".
+        assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1600), false))
     }
 
     @Test fun `double tap shift locks`() {
