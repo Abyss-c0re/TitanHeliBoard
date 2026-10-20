@@ -1,3 +1,11 @@
+# TitanHeliBoard
+
+HeliBoard fork for the Unihertz Titan hardware keyboard.
+
+- Layouts are English (US), Russian, and Spanish (Spain). Russian is the BlackBerry Passport layout. Alt+Shift, or holding Space, switches layout.
+- Hold Sym for the symbols printed on the key caps. On Atlas that key is Alt Right, and the glyphs match the device key map.
+- Keys stay raw unless a text field requested the keyboard.
+
 # HeliBoard
 HeliBoard is a privacy-conscious and customizable open-source keyboard, based on AOSP / OpenBoard.
 Does not use internet permission, and thus is 100% offline.
