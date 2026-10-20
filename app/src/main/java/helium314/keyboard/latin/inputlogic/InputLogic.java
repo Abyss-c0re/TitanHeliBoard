@@ -1049,6 +1049,14 @@ public final class InputLogic {
             resetEntireInputState(mConnection.getExpectedSelectionStart(), mConnection.getExpectedSelectionEnd(), true);
             isComposingWord = false;
         }
+        // Hardware keys while the soft keyboard is hidden must be committed text. A composing
+        // span is skipped by the system spell checker, and there is no suggestion strip to replace it.
+        final boolean commitForSpellChecker = event.getX() == Constants.EXTERNAL_KEYBOARD_COORDINATE
+                && !mLatinIME.onEvaluateInputViewShown();
+        if (commitForSpellChecker && isComposingWord) {
+            commitTyped(settingsValues, LastComposedWord.NOT_A_SEPARATOR);
+            isComposingWord = false;
+        }
         // We want to find out whether to start composing a new word with this character. If so,
         // we need to reset the composing state and switch isComposingWord. The order of the
         // tests is important for good performance.
@@ -1058,7 +1066,8 @@ public final class InputLogic {
         // a letter or a word connector.
                 && settingsValues.isWordCodePoint(codePoint)
         // We never go into composing state if suggestions are not requested.
-                && settingsValues.needsToLookupSuggestions() &&
+                && settingsValues.needsToLookupSuggestions()
+                && !commitForSpellChecker &&
         // In languages with spaces, we only start composing a word when we are not already
         // in the middle or at the end of a word. In languages without spaces, the above conditions are sufficient.
         // NOTE: If the InputConnection is slow, we skip the text-after-cursor check since it

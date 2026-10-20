@@ -712,6 +712,36 @@ public class LatinIME extends InputMethodService implements
                 mSettings.getCurrent(), mKeyboardSwitcher.getKeyboardSwitchState());
     }
 
+    /**
+     * Dictionaries and the input connection have to be ready even when a hardware keyboard
+     * hides the view. Suggestions are resumed only while the soft keyboard is visible, because
+     * resuming them marks the current word as composing and the spell checker then skips it.
+     *
+     * @return true when loadKeyboard should wait for a cache retry
+     */
+    private boolean startInputForField(final EditorInfo editorInfo, final SettingsValues settingsValues,
+            final boolean differentField, final boolean softKeyboardVisible) {
+        mInputLogic.startInput(mRichImm.getCombiningRulesExtraValueOfCurrentSubtype(), settingsValues);
+        resetDictionaryFacilitatorIfNecessary();
+        if (!mInputLogic.mConnection.resetCachesUponCursorMoveAndReturnSuccess(
+                editorInfo.initialSelStart, editorInfo.initialSelEnd,
+                !softKeyboardVisible /* shouldFinishComposition */)) {
+            if (softKeyboardVisible) {
+                mHandler.postResetCaches(differentField, 5 /* remainingTries */);
+                return true;
+            }
+            // Keep retrying the cache. Do not resume suggestions, and do not delay loadKeyboard.
+            mHandler.postResetCaches(false /* tryResumeSuggestions */, 5 /* remainingTries */);
+            return false;
+        }
+        mInputLogic.mConnection.tryFixIncorrectCursorPosition();
+        if (softKeyboardVisible && mInputLogic.mConnection.isCursorTouchingWord(
+                settingsValues.mSpacingAndPunctuations, true /* checkTextAfter */)) {
+            mHandler.postResumeSuggestions(true /* shouldDelay */);
+        }
+        return false;
+    }
+
     @Override
     public void onConfigurationChanged(final Configuration conf) {
         SettingsValues settingsValues = mSettings.getCurrent();
@@ -895,7 +925,13 @@ public class LatinIME extends InputMethodService implements
         }
 
         // In landscape mode, this method gets called without the input view being created.
+        // Still start input so hardware keys commit text the spell checker can see.
+        // Do not schedule a keyboard reload from here: the view does not exist yet.
         if (mainKeyboardView == null) {
+            mInputLogic.startInput(mRichImm.getCombiningRulesExtraValueOfCurrentSubtype(), currentSettingsValues);
+            resetDictionaryFacilitatorIfNecessary();
+            mInputLogic.mConnection.resetCachesUponCursorMoveAndReturnSuccess(
+                    editorInfo.initialSelStart, editorInfo.initialSelEnd, true /* shouldFinishComposition */);
             return;
         }
 
@@ -926,43 +962,12 @@ public class LatinIME extends InputMethodService implements
         // In some cases the input connection has not been reset yet and we can't access it. In
         // this case we will need to call loadKeyboard() later, when it's accessible, so that we
         // can go into the correct mode, so we need to do some housekeeping here.
-        final boolean needToCallLoadKeyboardLater;
         final Suggest suggest = mInputLogic.mSuggest;
-        if (!isImeSuppressedByHardwareKeyboard()) {
-            // The app calling setText() has the effect of clearing the composing
-            // span, so we should reset our state unconditionally, even if restarting is true.
-            // We also tell the input logic about the combining rules for the current subtype, so
-            // it can adjust its combiners if needed.
-            mInputLogic.startInput(mRichImm.getCombiningRulesExtraValueOfCurrentSubtype(), currentSettingsValues);
-
-            resetDictionaryFacilitatorIfNecessary();
-
-            // TODO[IL]: Can the following be moved to InputLogic#startInput?
-            if (!mInputLogic.mConnection.resetCachesUponCursorMoveAndReturnSuccess(
-                    editorInfo.initialSelStart, editorInfo.initialSelEnd,
-                    false /* shouldFinishComposition */)) {
-                // Sometimes, while rotating, for some reason the framework tells the app we are not
-                // connected to it and that means we can't refresh the cache. In this case, schedule
-                // a refresh later.
-                // We try resetting the caches up to 5 times before giving up.
-                mHandler.postResetCaches(isDifferentTextField, 5 /* remainingTries */);
-                // mLastSelection{Start,End} are reset later in this method, no need to do it here
-                needToCallLoadKeyboardLater = true;
-            } else {
-                // When rotating, and when input is starting again in a field from where the focus
-                // didn't move (the keyboard having been closed with the back key),
-                // initialSelStart and initialSelEnd sometimes are lying. Make a best effort to
-                // work around this bug.
-                mInputLogic.mConnection.tryFixIncorrectCursorPosition();
-                if (mInputLogic.mConnection.isCursorTouchingWord(currentSettingsValues.mSpacingAndPunctuations, true)) {
-                    mHandler.postResumeSuggestions(true /* shouldDelay */);
-                }
-                needToCallLoadKeyboardLater = false;
-            }
-        } else {
-            // If we have a hardware keyboard we don't need to call loadKeyboard later anyway.
-            needToCallLoadKeyboardLater = false;
-        }
+        // The app calling setText() has the effect of clearing the composing
+        // span, so we should reset our state unconditionally, even if restarting is true.
+        // A hardware keyboard still needs this, or dictionaries and the spell checker never start.
+        final boolean needToCallLoadKeyboardLater = startInputForField(editorInfo, currentSettingsValues,
+                isDifferentTextField, !isImeSuppressedByHardwareKeyboard());
 
         if (isDifferentTextField) {
             mainKeyboardView.closing();
