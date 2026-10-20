@@ -142,6 +142,7 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
     public static final String PREF_HW_LAYOUT_ALT_SHIFT = "hw_layout_alt_shift";
     public static final String PREF_HW_LAYOUT_SPACE_HOLD = "hw_layout_space_hold";
     public static final String PREF_HW_LAYOUT_TOAST = "hw_layout_toast";
+    public static final String PREF_HW_LAYOUT_HOLD = "hw_layout_hold";
     public static final String PREF_GESTURE_PREVIEW_TRAIL = "gesture_preview_trail";
     public static final String PREF_GESTURE_FLOATING_PREVIEW_TEXT = "gesture_floating_preview_text";
     public static final String PREF_GESTURE_FLOATING_PREVIEW_DYNAMIC = "gesture_floating_preview_dynamic";
@@ -234,7 +235,8 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
             case PREF_LAST_SHOWN_EMOJI_CATEGORY_PAGE_ID, PREF_LAST_SHOWN_EMOJI_CATEGORY_ID, PREF_RECENT_EMOJIS,
                  PREF_DONT_SHOW_MISSING_DICTIONARY_DIALOG, PREF_SELECTED_SUBTYPE,
                  PREF_HW_LAYOUT_ENABLED, PREF_HW_LAYOUT_ROTATION, PREF_HW_LAYOUT_CURRENT,
-                 PREF_HW_LAYOUT_ALT_SHIFT, PREF_HW_LAYOUT_SPACE_HOLD, PREF_HW_LAYOUT_TOAST -> false;
+                 PREF_HW_LAYOUT_ALT_SHIFT, PREF_HW_LAYOUT_SPACE_HOLD, PREF_HW_LAYOUT_TOAST,
+                 PREF_HW_LAYOUT_HOLD -> false;
             default -> !key.startsWith(PREF_SAVED_APP_SUBTYPE_PREFIX) && !key.startsWith("floating_pos");
         };
     }

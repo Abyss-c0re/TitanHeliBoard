@@ -14,6 +14,12 @@ internal object HwLayouts {
     /** How many Space repeats PocketBoard waits before a hold switches layout. The first press still inserts a space. */
     const val SPACE_SWITCH_REPEAT = 3
 
+    /** Held keys repeat. */
+    const val HOLD_REPEAT = "repeat"
+
+    /** Sym, or holding a key, types the symbol declared by the current layout. */
+    const val HOLD_SYMBOL = "symbol"
+
     val CATALOG = listOf(
         HwLayoutSpec(ID_EN, "en"),
         HwLayoutSpec(ID_RU_BBP, "ru"),

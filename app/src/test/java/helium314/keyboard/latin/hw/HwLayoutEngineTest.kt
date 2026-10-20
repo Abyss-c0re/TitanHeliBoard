@@ -97,15 +97,15 @@ class HwLayoutEngineTest {
         assertEquals(HwKeyDecision.Type('a'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_A, time = 1100), false))
     }
 
-    @Test fun `holding a letter does not turn it into a symbol`() {
+    @Test fun `holding a letter repeats it`() {
         val (_, engine) = rig()
         engine.noteField(text("com.example.notes"))
         assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1000), false))
-        assertEquals(HwKeyDecision.Consume, engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 1, time = 1400), false))
-        assertEquals(HwKeyDecision.Consume, engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 2, time = 1800), false))
+        assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 1, time = 1400), false))
+        assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 2, time = 1800), false))
     }
 
-    @Test fun `sym types the atlas glyph and shift with sym types nothing`() {
+    @Test fun `repeat mode types the letter while sym is held`() {
         val (prefs, engine) = rig()
         engine.noteField(text("com.example.notes"))
         assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false))
@@ -115,14 +115,75 @@ class HwLayoutEngineTest {
         )
         assertEquals(HwLayouts.ID_EN, prefs.currentId)
         assertEquals(
-            HwKeyDecision.Consume,
+            HwKeyDecision.Type('Q'.code, false),
             engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1200, meta = KeyEvent.META_ALT_RIGHT_ON or KeyEvent.META_SHIFT_ON), false),
         )
         engine.onKeyUp(up(KeyEvent.KEYCODE_SHIFT_LEFT, time = 1300))
+        // Past the multi-tap window, so this is another q and not the shifted "1".
         assertEquals(
-            HwKeyDecision.Type('0'.code, false),
-            engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1400, meta = KeyEvent.META_ALT_RIGHT_ON), false),
+            HwKeyDecision.Type('q'.code, false),
+            engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1700, meta = KeyEvent.META_ALT_RIGHT_ON), false),
         )
+    }
+
+    @Test fun `shift and sym types the shifted symbol from the layout`() {
+        val (prefs, engine) = rig()
+        prefs.holdForSymbol = true
+        engine.noteField(text("com.example.notes"))
+        engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false)
+        engine.onKeyDown(down(KeyEvent.KEYCODE_SHIFT_LEFT, time = 1100), false)
+        assertEquals(HwLayouts.ID_EN, prefs.currentId)
+        assertEquals(
+            HwKeyDecision.Type(';'.code, false),
+            engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1200, meta = KeyEvent.META_ALT_RIGHT_ON or KeyEvent.META_SHIFT_ON), false),
+        )
+    }
+
+    @Test fun `symbol mode uses the active layout and not a shared table`() {
+        val en = HwKeyboardMapping(mapOf(KeyEvent.KEYCODE_Q to qwerty))
+        val ru = HwKeyboardMapping(mapOf(
+            KeyEvent.KEYCODE_Q to HwKeyMapping(
+                listOf(HwKeyValue('й'.code, 'Й'.code)),
+                listOf(HwKeyValue('№'.code, 0)),
+            ),
+        ))
+        val prefs = MemPrefs(HwLayouts.CATALOG_IDS, HwLayouts.ID_EN)
+        prefs.holdForSymbol = true
+        val engine = HwLayoutEngine(prefs) { id -> if (id == HwLayouts.ID_RU_BBP) ru else en }
+        engine.noteField(text("com.example.notes"))
+        engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false)
+        assertEquals(
+            HwKeyDecision.Type(':'.code, false),
+            engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1100, meta = KeyEvent.META_ALT_RIGHT_ON), false),
+        )
+        engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_LEFT, time = 2000), false)
+        assertEquals(
+            HwKeyDecision.Switched(HwLayouts.ID_RU_BBP, false),
+            engine.onKeyDown(down(KeyEvent.KEYCODE_SHIFT_LEFT, time = 2100), false),
+        )
+        engine.onKeyUp(up(KeyEvent.KEYCODE_SHIFT_LEFT, time = 2200))
+        engine.onKeyUp(up(KeyEvent.KEYCODE_ALT_LEFT, time = 2300))
+        assertEquals(
+            HwKeyDecision.Type('№'.code, false),
+            engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 2400, meta = KeyEvent.META_ALT_RIGHT_ON), false),
+        )
+    }
+
+    @Test fun `holding a letter in symbol mode cycles that layout's symbols`() {
+        val (prefs, engine) = rig()
+        prefs.holdForSymbol = true
+        engine.noteField(text("com.example.notes"))
+        assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1000), false))
+        assertEquals(HwKeyDecision.Type(':'.code, true), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 1, time = 1400), false))
+        assertEquals(HwKeyDecision.Type('/'.code, true), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 2, time = 1800), false))
+    }
+
+    @Test fun `a key without a symbol repeats while symbol mode is on`() {
+        val (prefs, engine) = rig()
+        prefs.holdForSymbol = true
+        engine.noteField(text("com.example.notes"))
+        assertEquals(HwKeyDecision.Type('a'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_A, time = 1000), false))
+        assertEquals(HwKeyDecision.Type('a'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_A, repeat = 1, time = 1400), false))
     }
 
     @Test fun `one shot shift cancels auto cap and a plain tap capitalizes`() {
@@ -334,6 +395,7 @@ class HwLayoutEngineTest {
         override var altShift: Boolean = true
         override var spaceHold: Boolean = true
         override var toast: Boolean = true
+        override var holdForSymbol: Boolean = false
         override var longPressMs: Int = 300
         override fun setCurrentId(id: String) { storedId = id }
     }

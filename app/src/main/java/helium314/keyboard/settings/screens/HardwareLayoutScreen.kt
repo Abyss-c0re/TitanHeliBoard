@@ -44,6 +44,7 @@ fun HardwareLayoutScreen(onClickBack: () -> Unit) {
             Settings.PREF_HW_LAYOUT_CURRENT,
             Settings.PREF_HW_LAYOUT_ALT_SHIFT,
             Settings.PREF_HW_LAYOUT_SPACE_HOLD,
+            Settings.PREF_HW_LAYOUT_HOLD,
             Settings.PREF_HW_LAYOUT_TOAST,
         ),
     )
@@ -112,6 +113,23 @@ fun createHardwareLayoutSettings(context: Context) = listOf(
         R.string.hw_layout_space_hold_summary,
     ) {
         SwitchPreference(it, Defaults.PREF_HW_LAYOUT_SPACE_HOLD)
+    },
+    Setting(
+        context,
+        Settings.PREF_HW_LAYOUT_HOLD,
+        R.string.hw_layout_hold,
+        R.string.hw_layout_hold_summary,
+    ) { setting ->
+        val items = listOf(
+            stringResource(R.string.hw_layout_hold_repeat) to HwLayouts.HOLD_REPEAT,
+            stringResource(R.string.hw_layout_hold_symbol) to HwLayouts.HOLD_SYMBOL,
+        )
+        ListPreference(
+            setting,
+            items,
+            Defaults.PREF_HW_LAYOUT_HOLD,
+            description = stringResource(R.string.hw_layout_hold_summary),
+        )
     },
     Setting(context, Settings.PREF_HW_LAYOUT_TOAST, R.string.hw_layout_toast) {
         SwitchPreference(it, Defaults.PREF_HW_LAYOUT_TOAST)

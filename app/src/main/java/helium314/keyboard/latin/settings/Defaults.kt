@@ -7,6 +7,7 @@ import android.os.Build
 import android.util.TypedValue
 import android.view.Gravity
 import helium314.keyboard.keyboard.KeyboardActionListener
+import helium314.keyboard.latin.hw.HwLayouts
 import helium314.keyboard.keyboard.KeyboardTheme
 import helium314.keyboard.latin.BuildConfig
 import helium314.keyboard.latin.common.Constants.Separators
@@ -136,6 +137,7 @@ object Defaults {
     const val PREF_HW_LAYOUT_ALT_SHIFT = true
     const val PREF_HW_LAYOUT_SPACE_HOLD = true
     const val PREF_HW_LAYOUT_TOAST = true
+    const val PREF_HW_LAYOUT_HOLD = HwLayouts.HOLD_REPEAT
     const val PREF_GESTURE_PREVIEW_TRAIL = true
     const val PREF_GESTURE_FLOATING_PREVIEW_TEXT = true
     const val PREF_GESTURE_FLOATING_PREVIEW_DYNAMIC = true

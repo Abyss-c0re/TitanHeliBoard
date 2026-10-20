@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Layout switching follows PocketBoard. Sym follows the AtlasOS Titan map:
-// the Sym key is ALT_RIGHT and types that map's ralt glyph. Free Alt is ALT_LEFT.
-// A shift that already produced a character does not also stick on release.
+// Layout switching follows PocketBoard. Free Alt is ALT_LEFT. Sym is ALT_RIGHT.
+// Hold either repeats the key or types the active layout's symbol. A shift that
+// already produced a character does not also stick on release.
 package helium314.keyboard.latin.hw
 
 import android.text.InputType
@@ -14,6 +14,8 @@ internal interface HwLayoutPreferences {
     val altShift: Boolean
     val spaceHold: Boolean
     val toast: Boolean
+    /** When true, Sym or a held key types the active layout's symbol. Otherwise the key repeats. */
+    val holdForSymbol: Boolean
     val longPressMs: Int
     fun setCurrentId(id: String)
 }
@@ -169,7 +171,7 @@ internal class HwLayoutEngine(
         return HwKeyDecision.Pass
     }
 
-    /** Sym is held. It selects the printed symbol and does not switch layout. */
+    /** Sym is held. It does not switch layout. Symbol substitution is a setting. */
     private fun onSymDown(repeat: Int): HwKeyDecision {
         if (repeat != 0) return HwKeyDecision.Pass
         symHeld = true
@@ -216,12 +218,11 @@ internal class HwLayoutEngine(
         time: Long,
         repeat: Int,
     ): HwKeyDecision {
-        if (isSym(event)) return onSymCharacter(code, event, repeat)
         val numeric = HwLayouts.isNumericInputType(current.inputType)
         val layoutId = if (numeric) HwLayouts.ID_NUMERIC else activeLayoutId()
         val key = loadMapping(layoutId)?.get(code) ?: return HwKeyDecision.Pass
-        // A held letter stays the letter. Sym glyphs come from the Sym key, not from a long press.
-        if (repeat > 0) return HwKeyDecision.Consume
+        if (isSym(event) && prefs.holdForSymbol) return onLayoutSymbol(key, event, repeat)
+        if (repeat > 0) return onHeldLetter(key, repeat)
 
         val isNew = lastKey != code
         val quick = lastDownAt >= 0L && time - lastDownAt <= prefs.longPressMs
@@ -243,16 +244,27 @@ internal class HwLayoutEngine(
         return HwKeyDecision.Type(codePoint, replace)
     }
 
-    private fun onSymCharacter(code: Int, event: KeyEvent, repeat: Int): HwKeyDecision {
-        if (repeat > 0) return HwKeyDecision.Consume
-        if (shiftHeld || event.isShiftPressed || shiftMode != HwModifierMode.OFF) {
+    /** Repeat the current character, or replace it with the next symbol from this layout. */
+    private fun onHeldLetter(key: HwKeyMapping, repeat: Int): HwKeyDecision {
+        if (prefs.holdForSymbol && key.altValues.isNotEmpty()) {
+            val codePoint = key.get(seqShift, alt = true, index = repeat - 1)
+            iterating = false
             afterInput()
-            return HwKeyDecision.Consume
+            return HwKeyDecision.Type(codePoint, replaceLast = true)
         }
-        val glyph = HwSpecials.glyph(code) ?: return HwKeyDecision.Pass
+        val codePoint = key.get(seqShift, alt = false, index)
+        afterInput()
+        return HwKeyDecision.Type(codePoint, replaceLast = false)
+    }
+
+    /** Sym types the active layout's symbol. Shift uses that symbol's shifted form. */
+    private fun onLayoutSymbol(key: HwKeyMapping, event: KeyEvent, repeat: Int): HwKeyDecision {
+        if (repeat > 0) return HwKeyDecision.Consume
+        val shifted = chooseShift(shiftHeld || event.isShiftPressed, shiftMode, autoCap = false)
+        val codePoint = key.get(shifted, alt = key.altValues.isNotEmpty(), index = 0)
         resetIteration()
         afterInput()
-        return HwKeyDecision.Type(glyph, replaceLast = false)
+        return HwKeyDecision.Type(codePoint, replaceLast = false)
     }
 
     /** Advance the remembered layout. Returns null when there is nothing to switch to. */
