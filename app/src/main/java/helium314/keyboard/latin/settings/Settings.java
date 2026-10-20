@@ -135,6 +135,14 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
     public static final String PREF_KEY_LONGPRESS_TIMEOUT = "key_longpress_timeout";
     public static final String PREF_ENABLE_EMOJI_ALT_PHYSICAL_KEY = "enable_emoji_alt_physical_key";
     public static final String PREF_ENABLE_HARDWARE_KEYBOARD = "enable_hardware_keyboard";
+    // Titan hardware layouts. Read live by HwLayoutStore, so they must not reload SettingsValues mid-key.
+    public static final String PREF_HW_LAYOUT_ENABLED = "hw_layout_enabled";
+    public static final String PREF_HW_LAYOUT_ROTATION = "hw_layout_rotation";
+    public static final String PREF_HW_LAYOUT_CURRENT = "hw_layout_current";
+    public static final String PREF_HW_LAYOUT_ALT_SHIFT = "hw_layout_alt_shift";
+    public static final String PREF_HW_LAYOUT_SPACE_HOLD = "hw_layout_space_hold";
+    public static final String PREF_HW_LAYOUT_TOAST = "hw_layout_toast";
+    public static final String PREF_HW_LAYOUT_PASSTHROUGH = "hw_layout_passthrough";
     public static final String PREF_GESTURE_PREVIEW_TRAIL = "gesture_preview_trail";
     public static final String PREF_GESTURE_FLOATING_PREVIEW_TEXT = "gesture_floating_preview_text";
     public static final String PREF_GESTURE_FLOATING_PREVIEW_DYNAMIC = "gesture_floating_preview_dynamic";
@@ -225,7 +233,10 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
     private static boolean reloadOnChanged(String key) {
         return switch (key) {
             case PREF_LAST_SHOWN_EMOJI_CATEGORY_PAGE_ID, PREF_LAST_SHOWN_EMOJI_CATEGORY_ID, PREF_RECENT_EMOJIS,
-                 PREF_DONT_SHOW_MISSING_DICTIONARY_DIALOG, PREF_SELECTED_SUBTYPE -> false;
+                 PREF_DONT_SHOW_MISSING_DICTIONARY_DIALOG, PREF_SELECTED_SUBTYPE,
+                 PREF_HW_LAYOUT_ENABLED, PREF_HW_LAYOUT_ROTATION, PREF_HW_LAYOUT_CURRENT,
+                 PREF_HW_LAYOUT_ALT_SHIFT, PREF_HW_LAYOUT_SPACE_HOLD, PREF_HW_LAYOUT_TOAST,
+                 PREF_HW_LAYOUT_PASSTHROUGH -> false;
             default -> !key.startsWith(PREF_SAVED_APP_SUBTYPE_PREFIX) && !key.startsWith("floating_pos");
         };
     }

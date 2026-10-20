@@ -128,7 +128,14 @@ object Defaults {
     //  LatinIME.isInputViewShown() returns true when there is no input view, thus crashing in onUpdateSelection
     // physical layout ignored https://github.com/HeliBorg/HeliBoard/issues/1957, https://github.com/HeliBorg/HeliBoard/issues/1949
     // physical layout ignored for uppercase letters only (?) https://github.com/HeliBorg/HeliBoard/issues/2030
+    // Legacy decoder. Titan layouts use the hw_layout_* preferences and leave this off.
     const val PREF_ENABLE_HARDWARE_KEYBOARD = false
+    const val PREF_HW_LAYOUT_ROTATION = "en_us,ru_bbp,ru_t,ru_alt,es_es"
+    const val PREF_HW_LAYOUT_CURRENT = "en_us"
+    const val PREF_HW_LAYOUT_ALT_SHIFT = true
+    const val PREF_HW_LAYOUT_SPACE_HOLD = true
+    const val PREF_HW_LAYOUT_TOAST = true
+    const val PREF_HW_LAYOUT_PASSTHROUGH = ""
     const val PREF_GESTURE_PREVIEW_TRAIL = true
     const val PREF_GESTURE_FLOATING_PREVIEW_TEXT = true
     const val PREF_GESTURE_FLOATING_PREVIEW_DYNAMIC = true

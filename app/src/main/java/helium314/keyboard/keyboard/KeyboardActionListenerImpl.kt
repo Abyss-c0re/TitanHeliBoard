@@ -25,6 +25,8 @@ import helium314.keyboard.latin.common.InputPointers
 import helium314.keyboard.latin.common.WordBreakIterator
 import helium314.keyboard.latin.common.combiningRange
 import helium314.keyboard.latin.common.stepsToCharCount
+import helium314.keyboard.latin.hw.HwDispatch
+import helium314.keyboard.latin.hw.HwLayoutController
 import helium314.keyboard.latin.inputlogic.InputLogic
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.utils.BackgroundGatheringCache
@@ -38,6 +40,7 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
 
     private val connection = inputLogic.mConnection
     private val emojiAltPhysicalKeyDetector by lazy { EmojiAltPhysicalKeyDetector(latinIME.resources) }
+    private val hwLayouts by lazy { HwLayoutController(latinIME) }
 
     // We expect to have only one decoder in almost all cases, hence the default capacity of 1.
     // If it turns out we need several, it will get grown seamlessly.
@@ -70,6 +73,8 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
 
     override fun onKeyUp(keyCode: Int, keyEvent: KeyEvent): Boolean {
         emojiAltPhysicalKeyDetector.onKeyUp(keyEvent)
+        if (hwLayouts.onKeyUp(keyCode, keyEvent))
+            return true
         if (!settings.current.mEnableHardwareKeyboard)
             return false
 
@@ -79,6 +84,11 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
 
     override fun onKeyDown(keyCode: Int, keyEvent: KeyEvent): Boolean {
         emojiAltPhysicalKeyDetector.onKeyDown(keyEvent)
+        when (hwLayouts.onKeyDown(keyCode, keyEvent)) {
+            HwDispatch.IGNORE -> Unit
+            HwDispatch.PASS -> return false
+            HwDispatch.CONSUME -> return true
+        }
         if (!settings.current.mEnableHardwareKeyboard)
             return false
 
