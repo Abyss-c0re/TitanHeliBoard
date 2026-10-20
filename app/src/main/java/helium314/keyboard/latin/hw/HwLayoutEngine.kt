@@ -225,7 +225,7 @@ internal class HwLayoutEngine(
         afterInput()
         if (!prefs.spaceHold) return HwKeyDecision.Type(' '.code, replaceLast = false)
         if (repeat == 0) return HwKeyDecision.Type(' '.code, replaceLast = false)
-        if (repeat < HwLayouts.SPACE_SWITCH_REPEAT) return HwKeyDecision.Consume
+        if (repeat != HwLayouts.SPACE_SWITCH_REPEAT) return HwKeyDecision.Consume
         val next = cycle() ?: return HwKeyDecision.Consume
         return HwKeyDecision.Switched(next, undoSpace = true)
     }

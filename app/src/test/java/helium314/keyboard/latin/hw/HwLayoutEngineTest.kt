@@ -199,6 +199,7 @@ class HwLayoutEngineTest {
             HwKeyDecision.Switched(HwLayouts.ID_RU_BBP, true),
             engine.onKeyDown(down(KeyEvent.KEYCODE_SPACE, repeat = 3, time = 1300), false),
         )
+        assertEquals(HwKeyDecision.Consume, engine.onKeyDown(down(KeyEvent.KEYCODE_SPACE, repeat = 4, time = 1500), false))
         assertEquals(HwLayouts.ID_RU_BBP, prefs.currentId)
     }
 
