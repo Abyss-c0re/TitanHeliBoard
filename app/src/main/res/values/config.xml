@@ -90,12 +90,8 @@
         <item>57,16</item> <!-- KeyEvent.KEYCODE_ALT_LEFT , KeyEvent.META_ALT_LEFT_ON -->
     </string-array>
 
-    <!-- Key codes of hardware keys that can be used to toggle the Symbols (Shifted) layout.
-         Each array defines a comma-separated tuple containing:
-         1. Key code constant from android.view.KeyEvent
-         2. Meta mask (if any) from android.view.KeyEvent
-         Used in EmojiAltPhysicalKeyDetector and KeyboardSwitcher. -->
+    <!-- Empty on purpose. Alt Right is Sym on the Titan keyboard and must not open the
+         on-screen symbols keyboard. Alt Left still opens emoji when that preference is on. -->
     <string-array name="keyboard_switcher_symbols_shifted" translatable="false">
-        <item>58,32</item> <!-- KeyEvent.KEYCODE_ALT_RIGHT , KeyEvent.META_ALT_RIGHT_ON -->
     </string-array>
 </resources>

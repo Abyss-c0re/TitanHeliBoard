@@ -121,7 +121,7 @@ object Defaults {
     const val PREF_VIBRATION_DURATION_SETTINGS = -1
     const val PREF_KEYPRESS_SOUND_VOLUME = -0.01f
     const val PREF_KEY_LONGPRESS_TIMEOUT = 300
-    // Off: that detector treats ALT_RIGHT as "open the symbols keyboard". On Titan, ALT_RIGHT is Sym.
+    // Off until chosen. Alt Left opens emoji. Alt Right is Sym and is not in the hotkey list.
     const val PREF_ENABLE_EMOJI_ALT_PHYSICAL_KEY = false
     // supporting hardware keyboard still has a bunch of issues
     // crash https://github.com/HeliBorg/HeliBoard/issues/2047 (possibly fixed with b7cb95fc9da213c99d82e8833fb5f950f39d232e)
