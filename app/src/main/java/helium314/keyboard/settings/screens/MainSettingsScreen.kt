@@ -40,6 +40,7 @@ fun MainSettingsScreen(
     onClickAdvanced: () -> Unit,
     onClickAppearance: () -> Unit,
     onClickLanguage: () -> Unit,
+    onClickHardware: () -> Unit,
     onClickLayouts: () -> Unit,
     onClickDictionaries: () -> Unit,
     onClickBack: () -> Unit,
@@ -59,6 +60,12 @@ fun MainSettingsScreen(
                     description = enabledSubtypes.joinToString(", ") { it.displayName() },
                     onClick = onClickLanguage,
                     icon = R.drawable.ic_settings_languages
+                ) { NextScreenIcon() }
+                Preference(
+                    name = stringResource(R.string.hw_layout_screen_title),
+                    description = stringResource(R.string.hw_layout_screen_summary),
+                    onClick = onClickHardware,
+                    icon = R.drawable.ic_settings_layout
                 ) { NextScreenIcon() }
                 Preference(
                     name = stringResource(R.string.settings_screen_preferences),
@@ -124,7 +131,7 @@ private fun PreviewScreen() {
     initPreview(LocalContext.current)
     Theme(previewDark) {
         Surface {
-            MainSettingsScreen({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
+            MainSettingsScreen({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
         }
     }
 }

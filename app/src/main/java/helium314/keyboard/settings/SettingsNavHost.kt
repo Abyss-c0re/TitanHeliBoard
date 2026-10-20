@@ -23,6 +23,7 @@ import helium314.keyboard.settings.screens.ColorsScreen
 import helium314.keyboard.settings.screens.DebugScreen
 import helium314.keyboard.settings.screens.DictionaryScreen
 import helium314.keyboard.settings.screens.GestureTypingScreen
+import helium314.keyboard.settings.screens.HardwareLayoutScreen
 import helium314.keyboard.settings.screens.LanguageScreen
 import helium314.keyboard.settings.screens.MainSettingsScreen
 import helium314.keyboard.settings.screens.PersonalDictionariesScreen
@@ -76,6 +77,7 @@ fun SettingsNavHost(
                 onClickAdvanced = { navController.navigate(SettingsDestination.Advanced) },
                 onClickAppearance = { navController.navigate(SettingsDestination.Appearance) },
                 onClickLanguage = { navController.navigate(SettingsDestination.Languages) },
+                onClickHardware = { navController.navigate(SettingsDestination.HardwareLayouts) },
                 onClickLayouts = { navController.navigate(SettingsDestination.Layouts) },
                 onClickDictionaries = { navController.navigate(SettingsDestination.Dictionaries) },
                 onClickBack = ::goBack,
@@ -124,6 +126,9 @@ fun SettingsNavHost(
         composable(SettingsDestination.Languages) {
             LanguageScreen(onClickBack = ::goBack)
         }
+        composable(SettingsDestination.HardwareLayouts) {
+            HardwareLayoutScreen(onClickBack = ::goBack)
+        }
         composable(SettingsDestination.Dictionaries) {
             DictionaryScreen(onClickBack = ::goBack)
         }
@@ -161,6 +166,7 @@ object SettingsDestination {
     const val PersonalDictionaries = "personal_dictionaries"
     const val PersonalDictionary = "personal_dictionary/"
     const val Languages = "languages"
+    const val HardwareLayouts = "hardware_layouts"
     const val Subtype = "subtype/"
     const val Layouts = "layouts"
     const val Dictionaries = "dictionaries"
