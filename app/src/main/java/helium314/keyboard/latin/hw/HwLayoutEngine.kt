@@ -57,8 +57,8 @@ internal class HwLayoutEngine(
     private var altHeld = false
     private var shiftMode = HwModifierMode.OFF
     private var altMode = HwModifierMode.OFF
-    private var shiftPressAt = 0L
-    private var altPressAt = 0L
+    private var shiftPressAt = -1L
+    private var altPressAt = -1L
     private var lastShiftUpAt = -1L
     private var lastAltUpAt = -1L
     private var shiftTyped = false
@@ -152,6 +152,8 @@ internal class HwLayoutEngine(
         setLastUp: (Long) -> Unit,
     ) {
         clearHeld()
+        // A field change forgets the press. The matching key-up must not stick a new one-shot.
+        if (pressAt < 0L) return
         if (chord) {
             clearChord()
             setLastUp(-1L)
@@ -327,6 +329,8 @@ internal class HwLayoutEngine(
         altTyped = false
         shiftChord = false
         altChord = false
+        shiftPressAt = -1L
+        altPressAt = -1L
         lastShiftUpAt = -1L
         lastAltUpAt = -1L
         resetIteration()

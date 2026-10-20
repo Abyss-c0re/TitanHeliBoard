@@ -270,6 +270,15 @@ class HwLayoutEngineTest {
         )
     }
 
+    @Test fun `a shift release after the field changes does not stick`() {
+        val (_, engine) = rig()
+        engine.noteField(text("com.example.notes"))
+        engine.onKeyDown(down(KeyEvent.KEYCODE_SHIFT_LEFT, time = 1000), false)
+        engine.noteField(text("com.example.other"))
+        engine.onKeyUp(up(KeyEvent.KEYCODE_SHIFT_LEFT, time = 1100))
+        assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1200), false))
+    }
+
     @Test fun `changing fields clears a one shot shift`() {
         val (_, engine) = rig()
         engine.noteField(text("com.example.notes"))
