@@ -8,8 +8,6 @@ internal data class HwLayoutSpec(val id: String, val language: String)
 internal object HwLayouts {
     const val ID_EN = "en_us"
     const val ID_RU_BBP = "ru_bbp"
-    const val ID_RU_T = "ru_t"
-    const val ID_RU_ALT = "ru_alt"
     const val ID_ES = "es_es"
     const val ID_NUMERIC = "numeric"
 
@@ -19,8 +17,6 @@ internal object HwLayouts {
     val CATALOG = listOf(
         HwLayoutSpec(ID_EN, "en"),
         HwLayoutSpec(ID_RU_BBP, "ru"),
-        HwLayoutSpec(ID_RU_T, "ru"),
-        HwLayoutSpec(ID_RU_ALT, "ru"),
         HwLayoutSpec(ID_ES, "es"),
     )
 
@@ -47,51 +43,4 @@ internal object HwLayouts {
             InputType.TYPE_CLASS_DATETIME -> true
             else -> false
         }
-
-    /**
-     * Apps that must receive the original hardware keys. A trailing '*' or '.' in [extra]
-     * matches a package prefix. The built-in list is not replaced by [extra].
-     */
-    fun isDirectInput(packageName: String, extra: String): Boolean {
-        if (packageName.isEmpty()) return false
-        if (packageName in DIRECT_EXACT) return true
-        if (DIRECT_PREFIXES.any { packageName.startsWith(it) }) return true
-        return extra.split(',', ' ', '\n', ';', '\t')
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .any { entry -> matchesExtra(packageName, entry) }
-    }
-
-    private fun matchesExtra(packageName: String, entry: String): Boolean {
-        val stem = when {
-            entry.endsWith("*") -> entry.dropLast(1)
-            entry.endsWith(".") -> entry
-            else -> return packageName == entry
-        }
-        return stem.isNotEmpty() && packageName.startsWith(stem)
-    }
 }
-
-private val DIRECT_EXACT = setOf(
-    "com.android.calculator2",
-    "com.google.android.calculator",
-    "org.yuzu.yuzu_emu",
-    "org.citra.citra_emu",
-    "org.duckstation.duckstation",
-    "com.github.stenzek.duckstation",
-    "org.mupen64plusae.v3.fzurita",
-    "org.scummvm.scummvm",
-    "skyline.emu",
-    "org.strato.stratoemu",
-    "io.github.lime3ds.android",
-    "org.azahar_emu.azahar",
-    "com.limelight",
-    "com.carriez.flutter_hbb",
-)
-
-private val DIRECT_PREFIXES = listOf(
-    "com.retroarch",
-    "org.ppsspp.",
-    "org.dolphinemu.",
-    "com.explusalpha.",
-)

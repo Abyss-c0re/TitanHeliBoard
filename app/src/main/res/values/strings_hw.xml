@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="hw_layout_screen_title">Hardware layouts</string>
-    <string name="hw_layout_screen_summary">Alt+Shift or hold Space. Games keep raw keys.</string>
+    <string name="hw_layout_screen_summary">Alt+Shift or hold Space.</string>
     <string name="hw_layout_enabled">Use hardware layouts</string>
-    <string name="hw_layout_enabled_summary">In text fields, keys follow the selected layout. Tap Alt for the symbol layer, tap Shift for one capital, and double-tap either to lock it. Emulators still receive the original keys.</string>
+    <string name="hw_layout_enabled_summary">When a text field requests the keyboard, keys follow the selected layout. Hold Sym for the symbols on the key caps. Tap Shift for one capital, and double-tap it to lock. Keys stay raw when no text field requested input.</string>
     <string name="hw_layout_rotation">Layouts in rotation</string>
     <string name="hw_layout_rotation_summary">Alt+Shift and holding Space move through the selected layouts.</string>
     <string name="hw_layout_current">Current layout</string>
@@ -11,12 +11,8 @@
     <string name="hw_layout_space_hold">Hold Space to switch layout</string>
     <string name="hw_layout_space_hold_summary">The space inserted at the start of the hold is removed when the layout changes.</string>
     <string name="hw_layout_toast">Show layout name</string>
-    <string name="hw_layout_passthrough">Extra apps that keep raw keys</string>
-    <string name="hw_layout_passthrough_summary">Package names separated by commas. A trailing * matches a prefix. The built-in emulator list stays in effect.</string>
     <string name="hw_layout_switched">Hardware layout: %1$s</string>
     <string name="hw_layout_name_en_us">English (US)</string>
-    <string name="hw_layout_name_ru_bbp">Russian (BB Passport)</string>
-    <string name="hw_layout_name_ru_t">Russian (Translit)</string>
-    <string name="hw_layout_name_ru_alt">Russian (Alt)</string>
+    <string name="hw_layout_name_ru_bbp">Russian</string>
     <string name="hw_layout_name_es_es">Spanish (Spain)</string>
 </resources>

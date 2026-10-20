@@ -72,7 +72,8 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     }
 
     override fun onKeyUp(keyCode: Int, keyEvent: KeyEvent): Boolean {
-        emojiAltPhysicalKeyDetector.onKeyUp(keyEvent)
+        // Sym is ALT_RIGHT on Atlas. The emoji/symbols detector would open the on-screen symbols keyboard.
+        if (!hwLayouts.isActive()) emojiAltPhysicalKeyDetector.onKeyUp(keyEvent)
         if (hwLayouts.onKeyUp(keyCode, keyEvent))
             return true
         if (!settings.current.mEnableHardwareKeyboard)
@@ -83,7 +84,7 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     }
 
     override fun onKeyDown(keyCode: Int, keyEvent: KeyEvent): Boolean {
-        emojiAltPhysicalKeyDetector.onKeyDown(keyEvent)
+        if (!hwLayouts.isActive()) emojiAltPhysicalKeyDetector.onKeyDown(keyEvent)
         when (hwLayouts.onKeyDown(keyCode, keyEvent)) {
             HwDispatch.IGNORE -> Unit
             HwDispatch.PASS -> return false

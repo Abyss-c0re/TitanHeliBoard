@@ -121,7 +121,8 @@ object Defaults {
     const val PREF_VIBRATION_DURATION_SETTINGS = -1
     const val PREF_KEYPRESS_SOUND_VOLUME = -0.01f
     const val PREF_KEY_LONGPRESS_TIMEOUT = 300
-    const val PREF_ENABLE_EMOJI_ALT_PHYSICAL_KEY = true
+    // Off: that detector treats ALT_RIGHT as "open the symbols keyboard". On Titan, ALT_RIGHT is Sym.
+    const val PREF_ENABLE_EMOJI_ALT_PHYSICAL_KEY = false
     // supporting hardware keyboard still has a bunch of issues
     // crash https://github.com/HeliBorg/HeliBoard/issues/2047 (possibly fixed with b7cb95fc9da213c99d82e8833fb5f950f39d232e)
     // different crash https://github.com/HeliBorg/HeliBoard/issues/2001
@@ -130,12 +131,11 @@ object Defaults {
     // physical layout ignored for uppercase letters only (?) https://github.com/HeliBorg/HeliBoard/issues/2030
     // Legacy decoder. Titan layouts use the hw_layout_* preferences and leave this off.
     const val PREF_ENABLE_HARDWARE_KEYBOARD = false
-    const val PREF_HW_LAYOUT_ROTATION = "en_us,ru_bbp,ru_t,ru_alt,es_es"
+    const val PREF_HW_LAYOUT_ROTATION = "en_us,ru_bbp,es_es"
     const val PREF_HW_LAYOUT_CURRENT = "en_us"
     const val PREF_HW_LAYOUT_ALT_SHIFT = true
     const val PREF_HW_LAYOUT_SPACE_HOLD = true
     const val PREF_HW_LAYOUT_TOAST = true
-    const val PREF_HW_LAYOUT_PASSTHROUGH = ""
     const val PREF_GESTURE_PREVIEW_TRAIL = true
     const val PREF_GESTURE_FLOATING_PREVIEW_TEXT = true
     const val PREF_GESTURE_FLOATING_PREVIEW_DYNAMIC = true

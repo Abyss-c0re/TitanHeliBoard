@@ -22,8 +22,6 @@ fun hwLayoutLabel(context: Context, id: String): String {
     val res = when (id) {
         HwLayouts.ID_EN -> R.string.hw_layout_name_en_us
         HwLayouts.ID_RU_BBP -> R.string.hw_layout_name_ru_bbp
-        HwLayouts.ID_RU_T -> R.string.hw_layout_name_ru_t
-        HwLayouts.ID_RU_ALT -> R.string.hw_layout_name_ru_alt
         HwLayouts.ID_ES -> R.string.hw_layout_name_es_es
         else -> 0
     }
@@ -41,13 +39,11 @@ internal class HwLayoutController(private val latinIME: LatinIME) {
     private val engine = HwLayoutEngine(store, ::loadMapping)
     private val consumedDown = HashSet<Int>()
 
+    /** Hardware layouts are on, so Sym must not open the on-screen symbols keyboard. */
+    fun isActive(): Boolean = store.enabled
+
     fun onKeyDown(keyCode: Int, event: KeyEvent): HwDispatch {
-        val info = latinIME.currentInputEditorInfo
-        val field = if (info == null || latinIME.currentInputConnection == null) {
-            null
-        } else {
-            HwField(info.packageName.orEmpty(), info.inputType)
-        }
+        val field = currentField()
         engine.noteField(field)
         val autoCap = if (field != null) {
             runCatching { latinIME.currentAutoCapsState != 0 }.getOrDefault(false)
@@ -58,15 +54,20 @@ internal class HwLayoutController(private val latinIME: LatinIME) {
     }
 
     fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        val info = latinIME.currentInputEditorInfo
-        val field = if (info == null || latinIME.currentInputConnection == null) {
-            null
-        } else {
-            HwField(info.packageName.orEmpty(), info.inputType)
-        }
+        val field = currentField()
         engine.noteField(field)
         engine.onKeyUp(event)
         return consumedDown.remove(keyCode)
+    }
+
+    private fun currentField(): HwField? {
+        val info = latinIME.currentInputEditorInfo ?: return null
+        if (latinIME.currentInputConnection == null) return null
+        return HwField(
+            packageName = info.packageName.orEmpty(),
+            inputType = info.inputType,
+            inputForced = latinIME.isShowInputRequested,
+        )
     }
 
     private fun apply(keyCode: Int, event: KeyEvent, decision: HwKeyDecision): HwDispatch = when (decision) {
@@ -167,8 +168,6 @@ internal class HwLayoutController(private val latinIME: LatinIME) {
     private fun resourceFor(id: String): Int = when (id) {
         HwLayouts.ID_EN -> R.xml.keyboard_mapping_en_us_titan
         HwLayouts.ID_RU_BBP -> R.xml.keyboard_mapping_ru_bbp_titan
-        HwLayouts.ID_RU_T -> R.xml.keyboard_mapping_ru_t_titan
-        HwLayouts.ID_RU_ALT -> R.xml.keyboard_mapping_ru_alt
         HwLayouts.ID_ES -> R.xml.keyboard_mapping_es_es_titan
         HwLayouts.ID_NUMERIC -> R.xml.keyboard_mapping_numeric_titan
         else -> 0

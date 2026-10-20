@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Layout switching and sticky modifiers follow PocketBoard, with one change:
-// a modifier that already produced a character does not also stick on release.
+// Layout switching follows PocketBoard. Sym follows the AtlasOS Titan map:
+// the Sym key is ALT_RIGHT and types that map's ralt glyph. Free Alt is ALT_LEFT.
+// A shift that already produced a character does not also stick on release.
 package helium314.keyboard.latin.hw
 
 import android.text.InputType
@@ -13,12 +14,16 @@ internal interface HwLayoutPreferences {
     val altShift: Boolean
     val spaceHold: Boolean
     val toast: Boolean
-    val passthroughExtra: String
     val longPressMs: Int
     fun setCurrentId(id: String)
 }
 
-internal data class HwField(val packageName: String, val inputType: Int)
+internal data class HwField(
+    val packageName: String,
+    val inputType: Int,
+    /** True when the editor asked the IME to handle the field. Otherwise the key stays raw. */
+    val inputForced: Boolean = true,
+)
 
 internal enum class HwModifierMode { OFF, ONCE, LOCK }
 
@@ -35,7 +40,7 @@ internal sealed class HwKeyDecision {
 /**
  * Chooses whether the next character uses the shifted slot.
  * A one-shot shift cancels sentence auto-cap. Held shift and shift lock always shift.
- * [autoCap] must already be false when the alt layer is on or the character is not a letter.
+ * [autoCap] must already be false when the character is not a letter.
  */
 internal fun chooseShift(shiftHeld: Boolean, shiftMode: HwModifierMode, autoCap: Boolean): Boolean {
     if (shiftHeld || shiftMode == HwModifierMode.LOCK) return true
@@ -44,9 +49,8 @@ internal fun chooseShift(shiftHeld: Boolean, shiftMode: HwModifierMode, autoCap:
 }
 
 /**
- * Titan hardware layout state. The feature stays off the legacy hardware decoder:
- * when it is disabled the IME is told to [HwKeyDecision.Ignore] that path,
- * and when the focused app should keep raw keys the result is [HwKeyDecision.Pass].
+ * Titan hardware layout state. Disabled input leaves the legacy decoder alone.
+ * Keys stay raw unless a text field requested the IME.
  */
 internal class HwLayoutEngine(
     private val prefs: HwLayoutPreferences,
@@ -54,25 +58,19 @@ internal class HwLayoutEngine(
 ) {
     private var field: HwField? = null
     private var shiftHeld = false
-    private var altHeld = false
+    private var altLeftHeld = false
+    private var symHeld = false
     private var shiftMode = HwModifierMode.OFF
-    private var altMode = HwModifierMode.OFF
     private var shiftPressAt = -1L
-    private var altPressAt = -1L
     private var lastShiftUpAt = -1L
-    private var lastAltUpAt = -1L
     private var shiftTyped = false
-    private var altTyped = false
     private var shiftChord = false
-    private var altChord = false
 
     private var lastKey = -1
     private var lastDownAt = -1L
     private var index = 0
     private var seqShift = false
-    private var seqAlt = false
     private var iterating = false
-    private var longPressDone = false
 
     fun noteField(next: HwField?) {
         if (next == field) return
@@ -86,9 +84,7 @@ internal class HwLayoutEngine(
             return HwKeyDecision.Ignore
         }
         val current = field
-        if (current == null || current.inputType == InputType.TYPE_NULL
-            || HwLayouts.isDirectInput(current.packageName, prefs.passthroughExtra)
-        ) {
+        if (current == null || !current.inputForced || current.inputType == InputType.TYPE_NULL) {
             return HwKeyDecision.Pass
         }
 
@@ -96,12 +92,13 @@ internal class HwLayoutEngine(
         val time = event.eventTime
         val repeat = event.repeatCount
         if (isShift(code)) return onShiftDown(event, time, repeat)
-        if (isAlt(code)) return onAltDown(event, time, repeat)
+        if (isAltLeft(code)) return onAltLeftDown(event, repeat)
+        if (isAltRight(code)) return onSymDown(repeat)
         if (isCtrl(code) || event.isCtrlPressed) return HwKeyDecision.Pass
         if (code == KeyEvent.KEYCODE_SYM || code == KeyEvent.KEYCODE_PICTSYMBOLS) return HwKeyDecision.Pass
         if (code == KeyEvent.KEYCODE_DEL) return onDelete(event, repeat)
         if (code == KeyEvent.KEYCODE_ENTER) return onEnter(event, repeat)
-        if (code == KeyEvent.KEYCODE_SPACE) return onSpace(repeat)
+        if (code == KeyEvent.KEYCODE_SPACE) return onSpace(event, repeat)
         return onCharacter(current, code, event, autoCap, time, repeat)
     }
 
@@ -109,66 +106,38 @@ internal class HwLayoutEngine(
         if (!prefs.enabled || field == null) return
         val time = event.eventTime
         when {
-            isShift(event.keyCode) -> onModifierUp(
-                time = time,
-                pressAt = shiftPressAt,
-                lastUpAt = lastShiftUpAt,
-                chord = shiftChord,
-                typed = shiftTyped,
-                mode = shiftMode,
-                clearHeld = { shiftHeld = false },
-                clearChord = { shiftChord = false },
-                clearTyped = { shiftTyped = false },
-                setMode = { shiftMode = it },
-                setLastUp = { lastShiftUpAt = it },
-            )
-            isAlt(event.keyCode) -> onModifierUp(
-                time = time,
-                pressAt = altPressAt,
-                lastUpAt = lastAltUpAt,
-                chord = altChord,
-                typed = altTyped,
-                mode = altMode,
-                clearHeld = { altHeld = false },
-                clearChord = { altChord = false },
-                clearTyped = { altTyped = false },
-                setMode = { altMode = it },
-                setLastUp = { lastAltUpAt = it },
-            )
+            isShift(event.keyCode) -> onShiftUp(time)
+            isAltLeft(event.keyCode) -> altLeftHeld = false
+            isAltRight(event.keyCode) -> symHeld = false
         }
     }
 
-    private fun onModifierUp(
-        time: Long,
-        pressAt: Long,
-        lastUpAt: Long,
-        chord: Boolean,
-        typed: Boolean,
-        mode: HwModifierMode,
-        clearHeld: () -> Unit,
-        clearChord: () -> Unit,
-        clearTyped: () -> Unit,
-        setMode: (HwModifierMode) -> Unit,
-        setLastUp: (Long) -> Unit,
-    ) {
-        clearHeld()
-        // A field change forgets the press. The matching key-up must not stick a new one-shot.
+    private fun onShiftUp(time: Long) {
+        val pressAt = shiftPressAt
+        val lastUpAt = lastShiftUpAt
+        val chord = shiftChord
+        val typed = shiftTyped
+        val mode = shiftMode
+        shiftHeld = false
         if (pressAt < 0L) return
         if (chord) {
-            clearChord()
-            setLastUp(-1L)
+            shiftChord = false
+            lastShiftUpAt = -1L
             return
         }
         if (typed) {
-            clearTyped()
-            setLastUp(-1L)
+            shiftTyped = false
+            lastShiftUpAt = -1L
             return
         }
         if (time - pressAt < prefs.longPressMs) {
-            if (lastUpAt >= 0L && time - lastUpAt < prefs.longPressMs) setMode(HwModifierMode.LOCK)
-            else setMode(toggle(mode))
+            shiftMode = if (lastUpAt >= 0L && time - lastUpAt < prefs.longPressMs) {
+                HwModifierMode.LOCK
+            } else {
+                if (mode == HwModifierMode.OFF) HwModifierMode.ONCE else HwModifierMode.OFF
+            }
         }
-        setLastUp(time)
+        lastShiftUpAt = time
     }
 
     private fun onShiftDown(event: KeyEvent, time: Long, repeat: Int): HwKeyDecision {
@@ -177,29 +146,33 @@ internal class HwLayoutEngine(
         shiftPressAt = time
         shiftTyped = false
         if (event.isCtrlPressed) return HwKeyDecision.Pass
-        if (prefs.altShift && (altHeld || event.isAltPressed)) {
+        val freeAlt = altLeftHeld || (event.metaState and KeyEvent.META_ALT_LEFT_ON) != 0
+        if (prefs.altShift && freeAlt) {
             cycle()?.let {
                 shiftChord = true
-                altChord = true
                 return HwKeyDecision.Switched(it, undoSpace = false)
             }
         }
         return HwKeyDecision.Pass
     }
 
-    private fun onAltDown(event: KeyEvent, time: Long, repeat: Int): HwKeyDecision {
+    private fun onAltLeftDown(event: KeyEvent, repeat: Int): HwKeyDecision {
         if (repeat != 0) return HwKeyDecision.Pass
-        altHeld = true
-        altPressAt = time
-        altTyped = false
+        altLeftHeld = true
         if (event.isCtrlPressed) return HwKeyDecision.Pass
         if (prefs.altShift && (shiftHeld || event.isShiftPressed)) {
             cycle()?.let {
                 shiftChord = true
-                altChord = true
                 return HwKeyDecision.Switched(it, undoSpace = false)
             }
         }
+        return HwKeyDecision.Pass
+    }
+
+    /** Sym is held. It selects the printed symbol and does not switch layout. */
+    private fun onSymDown(repeat: Int): HwKeyDecision {
+        if (repeat != 0) return HwKeyDecision.Pass
+        symHeld = true
         return HwKeyDecision.Pass
     }
 
@@ -212,6 +185,7 @@ internal class HwLayoutEngine(
     }
 
     private fun onEnter(event: KeyEvent, repeat: Int): HwKeyDecision {
+        if (isSym(event)) return HwKeyDecision.Pass
         if (event.isShiftPressed || shiftHeld) {
             shiftTyped = true
             return HwKeyDecision.Pass
@@ -222,7 +196,9 @@ internal class HwLayoutEngine(
         return HwKeyDecision.Enter
     }
 
-    private fun onSpace(repeat: Int): HwKeyDecision {
+    private fun onSpace(event: KeyEvent, repeat: Int): HwKeyDecision {
+        // Sym+Space is the device's private space hook, not a layout switch.
+        if (isSym(event)) return HwKeyDecision.Pass
         resetIteration()
         afterInput()
         if (!prefs.spaceHold) return HwKeyDecision.Type(' '.code, replaceLast = false)
@@ -240,43 +216,43 @@ internal class HwLayoutEngine(
         time: Long,
         repeat: Int,
     ): HwKeyDecision {
+        if (isSym(event)) return onSymCharacter(code, event, repeat)
         val numeric = HwLayouts.isNumericInputType(current.inputType)
         val layoutId = if (numeric) HwLayouts.ID_NUMERIC else activeLayoutId()
         val key = loadMapping(layoutId)?.get(code) ?: return HwKeyDecision.Pass
-        if (repeat > 0) {
-            if (longPressDone) return HwKeyDecision.Consume
-            if (!numeric && !seqAlt && key.altValues.isNotEmpty() && time - lastDownAt > prefs.longPressMs) {
-                seqAlt = true
-                index = 0
-                longPressDone = true
-                lastDownAt = time
-                afterInput()
-                return HwKeyDecision.Type(key.get(seqShift, alt = true, index = 0), replaceLast = true)
-            }
-            return HwKeyDecision.Consume
-        }
+        // A held letter stays the letter. Sym glyphs come from the Sym key, not from a long press.
+        if (repeat > 0) return HwKeyDecision.Consume
 
-        val altOn = altHeld || event.isAltPressed || altMode != HwModifierMode.OFF
         val isNew = lastKey != code
         val quick = lastDownAt >= 0L && time - lastDownAt <= prefs.longPressMs
-        val continueSeq = iterating && !isNew && quick && key.hasAdditional(seqAlt)
+        val continueSeq = iterating && !isNew && quick && key.hasAdditional(alt = false)
         val replace = continueSeq && !numeric
         if (continueSeq) {
             index++
         } else {
-            val raw = key.get(shift = false, alt = altOn, index = 0)
-            val allowAuto = !altOn && Character.isLetter(raw)
+            val raw = key.get(shift = false, alt = false, index = 0)
+            val allowAuto = Character.isLetter(raw)
             seqShift = chooseShift(shiftHeld || event.isShiftPressed, shiftMode, autoCap && allowAuto)
-            seqAlt = altOn
             index = 0
-            iterating = key.hasAdditional(seqAlt)
-            longPressDone = false
+            iterating = key.hasAdditional(alt = false)
         }
         lastKey = code
         lastDownAt = time
-        val codePoint = key.get(seqShift, seqAlt, index)
+        val codePoint = key.get(seqShift, alt = false, index)
         afterInput()
         return HwKeyDecision.Type(codePoint, replace)
+    }
+
+    private fun onSymCharacter(code: Int, event: KeyEvent, repeat: Int): HwKeyDecision {
+        if (repeat > 0) return HwKeyDecision.Consume
+        if (shiftHeld || event.isShiftPressed || shiftMode != HwModifierMode.OFF) {
+            afterInput()
+            return HwKeyDecision.Consume
+        }
+        val glyph = HwSpecials.glyph(code) ?: return HwKeyDecision.Pass
+        resetIteration()
+        afterInput()
+        return HwKeyDecision.Type(glyph, replaceLast = false)
     }
 
     /** Advance the remembered layout. Returns null when there is nothing to switch to. */
@@ -303,11 +279,8 @@ internal class HwLayoutEngine(
 
     private fun afterInput() {
         if (shiftHeld) shiftTyped = true
-        if (altHeld) altTyped = true
         if (shiftMode == HwModifierMode.ONCE) shiftMode = HwModifierMode.OFF
-        if (altMode == HwModifierMode.ONCE) altMode = HwModifierMode.OFF
         lastShiftUpAt = -1L
-        lastAltUpAt = -1L
     }
 
     private fun resetIteration() {
@@ -315,31 +288,26 @@ internal class HwLayoutEngine(
         lastDownAt = -1L
         index = 0
         seqShift = false
-        seqAlt = false
         iterating = false
-        longPressDone = false
     }
 
     private fun resetTransient() {
         shiftHeld = false
-        altHeld = false
+        altLeftHeld = false
+        symHeld = false
         shiftMode = HwModifierMode.OFF
-        altMode = HwModifierMode.OFF
         shiftTyped = false
-        altTyped = false
         shiftChord = false
-        altChord = false
         shiftPressAt = -1L
-        altPressAt = -1L
         lastShiftUpAt = -1L
-        lastAltUpAt = -1L
         resetIteration()
     }
 
-    private fun toggle(mode: HwModifierMode): HwModifierMode =
-        if (mode == HwModifierMode.OFF) HwModifierMode.ONCE else HwModifierMode.OFF
+    private fun isSym(event: KeyEvent): Boolean =
+        symHeld || (event.metaState and KeyEvent.META_ALT_RIGHT_ON) != 0
 
     private fun isShift(code: Int) = code == KeyEvent.KEYCODE_SHIFT_LEFT || code == KeyEvent.KEYCODE_SHIFT_RIGHT
-    private fun isAlt(code: Int) = code == KeyEvent.KEYCODE_ALT_LEFT || code == KeyEvent.KEYCODE_ALT_RIGHT
+    private fun isAltLeft(code: Int) = code == KeyEvent.KEYCODE_ALT_LEFT
+    private fun isAltRight(code: Int) = code == KeyEvent.KEYCODE_ALT_RIGHT
     private fun isCtrl(code: Int) = code == KeyEvent.KEYCODE_CTRL_LEFT || code == KeyEvent.KEYCODE_CTRL_RIGHT
 }

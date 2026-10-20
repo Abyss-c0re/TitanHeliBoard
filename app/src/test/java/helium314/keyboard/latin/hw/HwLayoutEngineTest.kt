@@ -38,7 +38,7 @@ class HwLayoutEngineTest {
     }
 
     @Test fun `rotation keeps catalog order and drops unknown ids`() {
-        assertEquals(listOf(HwLayouts.ID_EN, HwLayouts.ID_RU_ALT), HwLayouts.sanitizeRotation("ru_alt, nope, en_us"))
+        assertEquals(listOf(HwLayouts.ID_EN, HwLayouts.ID_ES), HwLayouts.sanitizeRotation("es_es, nope, en_us"))
         assertEquals(listOf(HwLayouts.ID_EN), HwLayouts.sanitizeRotation(""))
     }
 
@@ -49,24 +49,19 @@ class HwLayoutEngineTest {
         assertEquals(HwKeyDecision.Ignore, engine.onKeyDown(down(KeyEvent.KEYCODE_Q), autoCap = false))
     }
 
-    @Test fun `null field type null and emulators pass keys through`() {
-        val (_, engine) = rig()
+    @Test fun `keys stay raw unless a text field requested input`() {
+        val (prefs, engine) = rig()
         engine.noteField(null)
         assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_Q), false))
 
-        engine.noteField(HwField("com.example.game", InputType.TYPE_NULL))
+        engine.noteField(HwField("com.example.game", InputType.TYPE_NULL, inputForced = true))
         assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_Q), false))
 
-        engine.noteField(text("org.yuzu.yuzu_emu"))
+        engine.noteField(text("com.example.notes", forced = false))
         assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_LEFT), false))
         assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_SHIFT_LEFT, time = 20), false))
-        assertEquals(HwLayouts.ID_EN, enginePrefs.currentId)
-
-        engine.noteField(text("com.retroarch.aarch64"))
         assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 40), false))
-        engine.noteField(text("com.custom.emu"))
-        enginePrefs.passthroughExtra = "com.custom.*"
-        assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 60), false))
+        assertEquals(HwLayouts.ID_EN, prefs.currentId)
     }
 
     @Test fun `letters use the map and ctrl does not`() {
@@ -102,15 +97,32 @@ class HwLayoutEngineTest {
         assertEquals(HwKeyDecision.Type('a'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_A, time = 1100), false))
     }
 
-    @Test fun `long press replaces with the first alt character once`() {
+    @Test fun `holding a letter does not turn it into a symbol`() {
         val (_, engine) = rig()
         engine.noteField(text("com.example.notes"))
-        engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1000), false)
-        assertEquals(
-            HwKeyDecision.Type(':'.code, true),
-            engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 1, time = 1400), false),
-        )
+        assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1000), false))
+        assertEquals(HwKeyDecision.Consume, engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 1, time = 1400), false))
         assertEquals(HwKeyDecision.Consume, engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 2, time = 1800), false))
+    }
+
+    @Test fun `sym types the atlas glyph and shift with sym types nothing`() {
+        val (prefs, engine) = rig()
+        engine.noteField(text("com.example.notes"))
+        assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false))
+        assertEquals(
+            HwKeyDecision.Pass,
+            engine.onKeyDown(down(KeyEvent.KEYCODE_SHIFT_LEFT, time = 1100), false),
+        )
+        assertEquals(HwLayouts.ID_EN, prefs.currentId)
+        assertEquals(
+            HwKeyDecision.Consume,
+            engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1200, meta = KeyEvent.META_ALT_RIGHT_ON or KeyEvent.META_SHIFT_ON), false),
+        )
+        engine.onKeyUp(up(KeyEvent.KEYCODE_SHIFT_LEFT, time = 1300))
+        assertEquals(
+            HwKeyDecision.Type('0'.code, false),
+            engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1400, meta = KeyEvent.META_ALT_RIGHT_ON), false),
+        )
     }
 
     @Test fun `one shot shift cancels auto cap and a plain tap capitalizes`() {
@@ -299,7 +311,8 @@ class HwLayoutEngineTest {
         return prefs to engine
     }
 
-    private fun text(packageName: String) = HwField(packageName, InputType.TYPE_CLASS_TEXT)
+    private fun text(packageName: String, forced: Boolean = true) =
+        HwField(packageName, InputType.TYPE_CLASS_TEXT, forced)
 
     private fun tapShift(engine: HwLayoutEngine, time: Long) {
         engine.onKeyDown(down(KeyEvent.KEYCODE_SHIFT_LEFT, time = time), false)
@@ -321,7 +334,6 @@ class HwLayoutEngineTest {
         override var altShift: Boolean = true
         override var spaceHold: Boolean = true
         override var toast: Boolean = true
-        override var passthroughExtra: String = ""
         override var longPressMs: Int = 300
         override fun setCurrentId(id: String) { storedId = id }
     }

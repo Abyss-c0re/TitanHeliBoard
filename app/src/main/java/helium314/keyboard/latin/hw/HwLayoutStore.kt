@@ -42,9 +42,6 @@ internal class HwLayoutStore(context: Context) : HwLayoutPreferences {
     override val toast: Boolean
         get() = prefs.getBoolean(Settings.PREF_HW_LAYOUT_TOAST, Defaults.PREF_HW_LAYOUT_TOAST)
 
-    override val passthroughExtra: String
-        get() = prefs.getString(Settings.PREF_HW_LAYOUT_PASSTHROUGH, Defaults.PREF_HW_LAYOUT_PASSTHROUGH).orEmpty()
-
     override val longPressMs: Int
         get() = prefs.getInt(Settings.PREF_KEY_LONGPRESS_TIMEOUT, Defaults.PREF_KEY_LONGPRESS_TIMEOUT)
             .coerceIn(50, 5000)

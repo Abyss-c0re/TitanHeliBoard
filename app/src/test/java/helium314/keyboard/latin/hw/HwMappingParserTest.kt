@@ -37,10 +37,6 @@ class HwMappingParserTest {
         val numeric = load(context, R.xml.keyboard_mapping_numeric_titan)
         assertEquals('1'.code, numeric.get(KeyEvent.KEYCODE_U)!!.get(shift = false, alt = false, index = 0))
         assertEquals('0'.code, numeric.get(KeyEvent.KEYCODE_P)!!.get(shift = false, alt = false, index = 0))
-
-        val alt = load(context, R.xml.keyboard_mapping_ru_alt).get(KeyEvent.KEYCODE_E)!!
-        assertEquals('у'.code, alt.get(shift = false, alt = false, index = 0))
-        assertEquals('@'.code, alt.get(shift = false, alt = true, index = 1))
     }
 
     @Test fun `raw escapes keep at-sign and a real backslash`() {

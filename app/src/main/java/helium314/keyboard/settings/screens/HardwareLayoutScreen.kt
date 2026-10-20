@@ -29,7 +29,6 @@ import helium314.keyboard.settings.dialogs.MultiListPickerDialog
 import helium314.keyboard.settings.preferences.ListPreference
 import helium314.keyboard.settings.preferences.Preference
 import helium314.keyboard.settings.preferences.SwitchPreference
-import helium314.keyboard.settings.preferences.TextInputPreference
 
 @Composable
 fun HardwareLayoutScreen(onClickBack: () -> Unit) {
@@ -46,7 +45,6 @@ fun HardwareLayoutScreen(onClickBack: () -> Unit) {
             Settings.PREF_HW_LAYOUT_ALT_SHIFT,
             Settings.PREF_HW_LAYOUT_SPACE_HOLD,
             Settings.PREF_HW_LAYOUT_TOAST,
-            Settings.PREF_HW_LAYOUT_PASSTHROUGH,
         ),
     )
 }
@@ -117,17 +115,5 @@ fun createHardwareLayoutSettings(context: Context) = listOf(
     },
     Setting(context, Settings.PREF_HW_LAYOUT_TOAST, R.string.hw_layout_toast) {
         SwitchPreference(it, Defaults.PREF_HW_LAYOUT_TOAST)
-    },
-    Setting(
-        context,
-        Settings.PREF_HW_LAYOUT_PASSTHROUGH,
-        R.string.hw_layout_passthrough,
-        R.string.hw_layout_passthrough_summary,
-    ) {
-        TextInputPreference(
-            it,
-            Defaults.PREF_HW_LAYOUT_PASSTHROUGH,
-            stringResource(R.string.hw_layout_passthrough_summary),
-        )
     },
 )
