@@ -22,6 +22,7 @@ import android.os.Bundle;
 import android.os.Debug;
 import android.os.Message;
 import android.os.Process;
+import android.text.InputType;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
@@ -54,6 +55,7 @@ import helium314.keyboard.keyboard.KeyboardId;
 import helium314.keyboard.keyboard.KeyboardLayoutSet;
 import helium314.keyboard.keyboard.KeyboardSwitcher;
 import helium314.keyboard.keyboard.MainKeyboardView;
+import helium314.keyboard.latin.SuggestedWords;
 import helium314.keyboard.latin.SuggestedWords.SuggestedWordInfo;
 import helium314.keyboard.latin.common.ColorType;
 import helium314.keyboard.latin.common.Constants;
@@ -146,6 +148,8 @@ public class LatinIME extends InputMethodService implements
     // Working variable for {@link #startShowingInputView()} and
     // {@link #onEvaluateInputViewShown()}.
     private boolean mIsExecutingStartShowingInputView;
+    /** Letter keys are hidden and the suggestion strip is the input view. */
+    private boolean mHardwareCandidateBar;
 
     // Used for re-initialize keyboard layout after onConfigurationChange.
     @Nullable
@@ -256,10 +260,11 @@ public class LatinIME extends InputMethodService implements
                     }
                     break;
                 case MSG_RESUME_SUGGESTIONS:
-                    // isInputViewShown() is only the decor. A hardware keyboard can show that
-                    // decor while onEvaluateInputViewShown() is false. Recorrection then hides
-                    // the spell underline, so resume only when the soft keyboard is actually up.
-                    if (latinIme.isInputViewShown() && latinIme.onEvaluateInputViewShown()) {
+                    // isSoftKeyboardShown() refreshes the candidate-bar flag. Recorrection runs
+                    // only for a real soft keyboard. The hardware path suggests without a
+                    // composing span, so a dictionary load can still fill the strip.
+                    if (latinIme.isInputViewShown()
+                            && (latinIme.isSoftKeyboardShown() || latinIme.isHardwareCandidateBar())) {
                         latinIme.mInputLogic.restartSuggestionsOnWordTouchedByCursor(
                                 latinIme.mSettings.getCurrent());
                     }
@@ -719,6 +724,40 @@ public class LatinIME extends InputMethodService implements
     }
 
     /**
+     * Show the suggestion strip while a hardware keyboard hides the letter keys.
+     * Must not call {@link #onEvaluateInputViewShown()}, {@link #onShowInputRequested},
+     * or {@link #isImeSuppressedByHardwareKeyboard()}.
+     */
+    public boolean hardwareCandidateBarWanted() {
+        final SettingsValues values = mSettings.getCurrent();
+        if (values == null || !values.mHasHardwareKeyboard || !values.mSuggestionsEnabled) {
+            return false;
+        }
+        final EditorInfo editorInfo = getCurrentInputEditorInfo();
+        return editorInfo != null && editorInfo.inputType != InputType.TYPE_NULL;
+    }
+
+    public boolean isHardwareCandidateBar() {
+        return mHardwareCandidateBar;
+    }
+
+    /**
+     * Alphabet keys are on screen. The candidate bar is not a soft keyboard: a composing span
+     * started for it would hide the hardware spell underline.
+     */
+    public boolean isSoftKeyboardShown() {
+        return onEvaluateInputViewShown() && !mHardwareCandidateBar;
+    }
+
+    /** Re-read the flag so Alt-emoji cannot leave the letter keys up afterwards. */
+    public boolean shouldHideHardwareLetterKeys() {
+        if (mIsExecutingStartShowingInputView) {
+            return false;
+        }
+        return onEvaluateInputViewShown() && mHardwareCandidateBar;
+    }
+
+    /**
      * Dictionaries and the input connection have to be ready even when a hardware keyboard
      * hides the view. Suggestions are resumed only while the soft keyboard is visible.
      * Resuming them marks the current word as composing, and that style hides the spell underline.
@@ -736,8 +775,9 @@ public class LatinIME extends InputMethodService implements
                 mHandler.postResetCaches(differentField, 5 /* remainingTries */);
                 return true;
             }
-            // Keep retrying the cache. Do not resume suggestions, and do not delay loadKeyboard.
-            mHandler.postResetCaches(false /* tryResumeSuggestions */, 5 /* remainingTries */);
+            // The editor text is not readable yet. Resume later for the candidate bar without
+            // delaying loadKeyboard. restartSuggestionsOnWordTouchedByCursor will not compose.
+            mHandler.postResetCaches(isHardwareCandidateBar() /* tryResumeSuggestions */, 5);
             return false;
         }
         mInputLogic.mConnection.tryFixIncorrectCursorPosition();
@@ -915,6 +955,12 @@ public class LatinIME extends InputMethodService implements
         }
 
         switcher.updateKeyboardTheme(mDisplayContext);
+        // showWindow may have evaluated the bar before this field's settings were loaded,
+        // leaving the input frame gone. Re-evaluate now that the editor type is known.
+        // This does not call showWindow, so it is safe from inside onStartInputView.
+        if (hardwareCandidateBarWanted()) {
+            updateInputViewShown();
+        }
         MainKeyboardView mainKeyboardView = switcher.getMainKeyboardView();
         currentSettingsValues = mSettings.getCurrent(); // settingsValues may have been reloaded
 
@@ -973,7 +1019,7 @@ public class LatinIME extends InputMethodService implements
         // span, so we should reset our state unconditionally, even if restarting is true.
         // A hardware keyboard still needs this, or dictionaries and the spell checker never start.
         final boolean needToCallLoadKeyboardLater = startInputForField(editorInfo, currentSettingsValues,
-                isDifferentTextField, !isImeSuppressedByHardwareKeyboard());
+                isDifferentTextField, isSoftKeyboardShown());
 
         if (isDifferentTextField) {
             mainKeyboardView.closing();
@@ -1000,6 +1046,11 @@ public class LatinIME extends InputMethodService implements
             setNeutralSuggestionStrip();
             if (hasSuggestionStripView() && currentSettingsValues.mAutoShowToolbar && !tryShowClipboardSuggestion()) {
                 mSuggestionStripView.setToolbarVisibility(true);
+            }
+            // The hardware word is committed, so the soft-keyboard resume never runs.
+            // Ask for suggestions once the keyboard needed by the dictionary is loaded.
+            if (isHardwareCandidateBar()) {
+                mHandler.postUpdateSuggestionStrip(SuggestedWords.INPUT_STYLE_TYPING);
             }
         }
 
@@ -1085,7 +1136,13 @@ public class LatinIME extends InputMethodService implements
         final SettingsValues settingsValues = mSettings.getCurrent();
         final boolean cursorMoved = mInputLogic.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd,
                 composingSpanStart, composingSpanEnd, settingsValues);
-        if (!cursorMoved || !isInputViewShown() || !onEvaluateInputViewShown()) {
+        // isSoftKeyboardShown() refreshes the candidate-bar flag. A cursor move with the letter
+        // keys hidden still needs suggestions for the committed word under the caret.
+        final boolean softKeyboardShown = isSoftKeyboardShown();
+        if (cursorMoved && isHardwareCandidateBar()) {
+            mHandler.postUpdateSuggestionStrip(SuggestedWords.INPUT_STYLE_TYPING);
+        }
+        if (!cursorMoved || !isInputViewShown() || !softKeyboardShown) {
             return;
         }
         // we don't want to update a manually set shift state if selection changed towards one side
@@ -1206,6 +1263,23 @@ public class LatinIME extends InputMethodService implements
             return;
         }
         final int inputHeight = mInputView.getHeight();
+        // The wrapper's last measured height is the full keyboard. Ignore it while only the strip is up.
+        if (isHardwareCandidateBar() && !visibleKeyboardView.isShown()) {
+            final View strip = mKeyboardSwitcher.getStripContainer();
+            int stripHeight = strip == null ? 0 : strip.getHeight();
+            if (stripHeight <= 0) {
+                stripHeight = getResources().getDimensionPixelSize(R.dimen.config_suggestions_strip_height);
+            }
+            final int visibleTopY = Math.max(0, inputHeight - stripHeight);
+            if (hasSuggestionStripView()) {
+                mSuggestionStripView.setMoreSuggestionsHeight(visibleTopY);
+            }
+            outInsets.contentTopInsets = visibleTopY;
+            outInsets.visibleTopInsets = visibleTopY;
+            outInsets.touchableInsets = InputMethodService.Insets.TOUCHABLE_INSETS_VISIBLE;
+            mInsetsUpdater.setInsets(outInsets);
+            return;
+        }
         if (isImeSuppressedByHardwareKeyboard() && !visibleKeyboardView.isShown()) {
             // If there is a hardware keyboard and a visible software keyboard view has been hidden,
             // no visual element will be shown on the screen.
@@ -1263,8 +1337,31 @@ public class LatinIME extends InputMethodService implements
         showWindow(false /* showInput */);
     }
 
+    /**
+     * onShowInputRequested runs before onStartInputView. Settings still describe the previous
+     * field unless they are reloaded here, and the candidate bar would never be requested.
+     */
+    private void ensureSettingsMatchCurrentEditor() {
+        final EditorInfo editorInfo = getCurrentInputEditorInfo();
+        if (editorInfo == null) {
+            return;
+        }
+        final SettingsValues values = mSettings.getCurrent();
+        if (values == null
+                || !values.isSameInputType(editorInfo)
+                || !values.hasSameOrientation(getResources().getConfiguration())) {
+            loadSettings();
+        }
+    }
+
     @Override
     public boolean onShowInputRequested(final int flags, final boolean configChange) {
+        ensureSettingsMatchCurrentEditor();
+        // super returns false for an implicit show while a hardware keyboard is attached,
+        // even after onEvaluate starts returning true for the candidate bar.
+        if (hardwareCandidateBarWanted()) {
+            return true;
+        }
         if (isImeSuppressedByHardwareKeyboard()) {
             return true;
         }
@@ -1274,15 +1371,23 @@ public class LatinIME extends InputMethodService implements
     @Override
     public boolean onEvaluateInputViewShown() {
         if (mIsExecutingStartShowingInputView) {
+            mHardwareCandidateBar = false;
             return true;
         }
-        return super.onEvaluateInputViewShown();
+        if (super.onEvaluateInputViewShown()) {
+            mHardwareCandidateBar = false;
+            return true;
+        }
+        mHardwareCandidateBar = hardwareCandidateBarWanted();
+        return mHardwareCandidateBar;
     }
 
     @Override
     public boolean onEvaluateFullscreenMode() {
-        if (isImeSuppressedByHardwareKeyboard() || mSettings.getCurrent().mIsFloatingKeyboard) {
-            // If there is a hardware keyboard or we're floating, disable full screen mode.
+        // isImeSuppressedByHardwareKeyboard() refreshes the candidate-bar flag. Check the flag
+        // after that. A strip must not replace the app with the extract-text fullscreen UI.
+        if (isImeSuppressedByHardwareKeyboard() || isHardwareCandidateBar()
+                || mSettings.getCurrent().mIsFloatingKeyboard) {
             return false;
         }
         // Reread resource value here, because this method is called by the framework as needed.

@@ -44,6 +44,7 @@ import kotlin.streams.asSequence
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 
 @RunWith(RobolectricTestRunner::class)
 @Config(shadows = [
@@ -112,6 +113,40 @@ class InputLogicTest {
         setText("hello there H̵̛͕̞̦̰̜͍̰̥̟͆̏͂̌͑́ͅ")
         functionalKeyPress(KeyCode.DELETE)
         assertEquals("hello there ", text)
+    }
+
+    @Test fun hardwareLetterStaysCommittedWhenTheSoftKeyboardIsHidden() {
+        ShadowInputMethodService.showSoftInputView = false
+        setText("")
+        latinIME.onEvent(Event.createHardwareKeypressEvent('a'.code, Event.NOT_A_KEY_CODE, 0, null, false))
+        handleMessages()
+        assertEquals("a", text)
+        assertEquals("", composingText)
+        assertFalse(composer.isComposingWord)
+    }
+
+    @Test fun hardwareSuggestionReplacesTheCommittedPrefix() {
+        ShadowInputMethodService.showSoftInputView = false
+        setText("helo")
+        assertEquals("", composingText)
+        val bar = LatinIME::class.java.getDeclaredField("mHardwareCandidateBar").apply { isAccessible = true }
+        bar.setBoolean(latinIME, true)
+        pickSuggestion("hello")
+        handleMessages()
+        assertEquals("hello", text)
+        assertEquals("", composingText)
+        assertFalse(composer.isComposingWord)
+    }
+
+    @Test fun hardwareCandidateSuggestionsDoNotComposeTheWord() {
+        ShadowInputMethodService.showSoftInputView = false
+        setText("helo")
+        val bar = LatinIME::class.java.getDeclaredField("mHardwareCandidateBar").apply { isAccessible = true }
+        bar.setBoolean(latinIME, true)
+        inputLogic.performUpdateSuggestionStripSync(settingsValues, SuggestedWords.INPUT_STYLE_TYPING)
+        assertEquals("helo", text)
+        assertEquals("", composingText)
+        assertFalse(composer.isComposingWord)
     }
 
     @Test fun backspaceDeletesASelectionTheCacheDoesNotKnowAbout() {

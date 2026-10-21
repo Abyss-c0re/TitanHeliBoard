@@ -232,17 +232,26 @@ public final class KeyboardSwitcher {
 
     private void setMainKeyboardFrame(
             @NonNull final SettingsValues settingsValues,
-            @NonNull final KeyboardSwitchState toggleState) {
-        final int visibility = isImeSuppressedByHardwareKeyboard(settingsValues, toggleState) ? View.GONE : View.VISIBLE;
-        final int stripVisibility = mLatinIME.hasSuggestionStripView()? View.VISIBLE : View.GONE;
+            @NonNull final KeyboardSwitchState toggleState,
+            final boolean alphabetLayout) {
+        // Alphabet keys stay down while the hardware candidate bar is up. Symbol, number, and
+        // d-pad layouts are requested from the toolbar and stay visible.
+        final boolean hideAlphabet = alphabetLayout && mLatinIME.shouldHideHardwareLetterKeys();
+        final boolean suppressed = isImeSuppressedByHardwareKeyboard(settingsValues, toggleState)
+                && !hideAlphabet;
+        final int stripVisibility = mLatinIME.hasSuggestionStripView() ? View.VISIBLE : View.GONE;
+        final int keyVisibility = (suppressed || hideAlphabet) ? View.GONE : View.VISIBLE;
+        final int frameVisibility = suppressed ? View.GONE : View.VISIBLE;
+        final int wrapperVisibility = (suppressed || hideAlphabet
+                || Settings.getInstance().readShowToolbarOnly()) ? View.GONE : View.VISIBLE;
         mStripContainer.setVisibility(stripVisibility);
         PointerTracker.switchTo(mKeyboardView);
-        mKeyboardView.setVisibility(visibility);
+        mKeyboardView.setVisibility(keyVisibility);
         // The visibility of {@link #mKeyboardView} must be aligned with {@link #MainKeyboardFrame}.
         // @see #getVisibleKeyboardView() and
         // @see LatinIME#onComputeInset(android.inputmethodservice.InputMethodService.Insets)
-        mMainKeyboardFrame.setVisibility(visibility);
-        mKeyboardViewWrapper.setVisibility(Settings.getInstance().readShowToolbarOnly() ? View.GONE : View.VISIBLE);
+        mMainKeyboardFrame.setVisibility(frameVisibility);
+        mKeyboardViewWrapper.setVisibility(wrapperVisibility);
         mEmojiPalettesView.setVisibility(View.GONE);
         mEmojiPalettesView.stopEmojiPalettes();
         mEmojiTabStripView.setVisibility(View.GONE);
@@ -639,6 +648,7 @@ public final class KeyboardSwitcher {
             if (DEBUG_ACTION) {
                 Log.d(TAG, "setEmojiKeyboard");
             }
+            mKeyboardViewWrapper.setVisibility(View.VISIBLE);
             mMainKeyboardFrame.setVisibility(View.VISIBLE);
             // The visibility of {@link #mKeyboardView} must be aligned with {@link #MainKeyboardFrame}.
             // @see #getVisibleKeyboardView() and
@@ -659,6 +669,7 @@ public final class KeyboardSwitcher {
             if (DEBUG_ACTION) {
                 Log.d(TAG, "setClipboardKeyboard");
             }
+            mKeyboardViewWrapper.setVisibility(View.VISIBLE);
             mMainKeyboardFrame.setVisibility(View.VISIBLE);
             // The visibility of {@link #mKeyboardView} must be aligned with {@link #MainKeyboardFrame}.
             // @see #getVisibleKeyboardView() and
@@ -750,7 +761,7 @@ public final class KeyboardSwitcher {
 
             // Make {@link MainKeyboardView} visible and hide {@link EmojiPalettesView}.
             SettingsValues currentSettingsValues = Settings.getValues();
-            setMainKeyboardFrame(currentSettingsValues, toggleState);
+            setMainKeyboardFrame(currentSettingsValues, toggleState, keyboardElement.isAlphabet());
             // TODO: pass this object to setKeyboard instead of getting the current values.
             MainKeyboardView keyboardView = mKeyboardView;
             Keyboard oldKeyboard = keyboardView.getKeyboard();

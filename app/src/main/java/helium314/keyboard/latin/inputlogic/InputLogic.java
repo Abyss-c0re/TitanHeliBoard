@@ -343,6 +343,11 @@ public final class InputLogic {
             return inputTransaction;
         }
 
+        // commitText inserts when the hardware word is only committed text, so the prefix
+        // would be duplicated. Remove it first. Do not mark the composer as composing.
+        if (!mWordComposer.isComposingWord() && mLatinIME.isHardwareCandidateBar()) {
+            replaceHardwarePrefixForSuggestion(settingsValues);
+        }
         commitChosenWord(settingsValues, suggestion, LastComposedWord.COMMIT_TYPE_MANUAL_PICK, LastComposedWord.NOT_A_SEPARATOR);
         mConnection.endBatchEdit();
         // Don't allow cancellation of manual pick
@@ -1053,11 +1058,10 @@ public final class InputLogic {
             resetEntireInputState(mConnection.getExpectedSelectionStart(), mConnection.getExpectedSelectionEnd(), true);
             isComposingWord = false;
         }
-        // Hardware keys while the soft keyboard is hidden stay committed. On current AOSP a
-        // composing span is not skipped by the spell checker, but setComposingText replaces the
-        // word on every letter and the composing style hides the red underline.
+        // Hardware keys while the letter keys are hidden stay committed. The candidate bar makes
+        // onEvaluateInputViewShown true, but a composing span still hides the red underline.
         final boolean commitForSpellChecker = event.getX() == Constants.EXTERNAL_KEYBOARD_COORDINATE
-                && !mLatinIME.onEvaluateInputViewShown();
+                && !mLatinIME.isSoftKeyboardShown();
         if (commitForSpellChecker && isComposingWord) {
             commitTyped(settingsValues, LastComposedWord.NOT_A_SEPARATOR);
             isComposingWord = false;
@@ -1252,6 +1256,12 @@ public final class InputLogic {
             }
         }
 
+        // The hardware word is not composing, so the soft-keyboard update does not run.
+        // Ask again after the separator is in the editor.
+        if (event.getX() == Constants.EXTERNAL_KEYBOARD_COORDINATE && mLatinIME.isHardwareCandidateBar()) {
+            inputTransaction.setRequiresUpdateSuggestions();
+        }
+
         inputTransaction.requireShiftUpdate(InputTransaction.SHIFT_UPDATE_NOW);
     }
 
@@ -1261,7 +1271,7 @@ public final class InputLogic {
      */
     private void underlineHardwareMisspelling(final Event event, final SettingsValues settingsValues) {
         if (event.getX() != Constants.EXTERNAL_KEYBOARD_COORDINATE
-                || mLatinIME.onEvaluateInputViewShown()
+                || mLatinIME.isSoftKeyboardShown()
                 || !settingsValues.isWordSeparator(event.getCodePoint())
                 || !settingsValues.mInputAttributes.mShouldShowSuggestions) {
             return;
@@ -1812,6 +1822,89 @@ public final class InputLogic {
         );
     }
 
+    /** True when the caret is not inside a hardware word, so prefix suggestions do not apply. */
+    private boolean isAtHardwareSuggestionBoundary(final SettingsValues settingsValues) {
+        final int codePointBeforeCursor = mConnection.getCodePointBeforeCursor();
+        return codePointBeforeCursor == Constants.NOT_A_CODE
+                || settingsValues.isWordSeparator(codePointBeforeCursor);
+    }
+
+    /**
+     * Suggestions for the committed hardware prefix. The real composer stays inactive so backspace
+     * edits the editor and the spell checker can still underline a finished word.
+     */
+    public void updateHardwareCandidateSuggestions(final SettingsValues settingsValues) {
+        if (settingsValues == null || !settingsValues.mSuggestionsEnabled || mConnection.hasSelection()) {
+            mSuggestionStripViewAccessor.setNeutralSuggestionStrip();
+            return;
+        }
+        final int codePointBeforeCursor = mConnection.getCodePointBeforeCursor();
+        if (codePointBeforeCursor == Constants.NOT_A_CODE
+                || settingsValues.isWordSeparator(codePointBeforeCursor)) {
+            mSuggestionStripViewAccessor.setNeutralSuggestionStrip();
+            return;
+        }
+        try {
+            final TextRange range = mConnection.getWordRangeAtCursor(settingsValues.mSpacingAndPunctuations);
+            if (range == null) {
+                mSuggestionStripViewAccessor.setNeutralSuggestionStrip();
+                return;
+            }
+            final int before = range.getNumberOfCharsInWordBeforeCursor();
+            if (before <= 0 || before > range.mWord.length()) {
+                mSuggestionStripViewAccessor.setNeutralSuggestionStrip();
+                return;
+            }
+            final String word = range.mWord.subSequence(0, before).toString();
+            final Keyboard keyboard = KeyboardSwitcher.getInstance().getKeyboard();
+            if (keyboard == null || mSuggest == null || word.isEmpty()) {
+                mSuggestionStripViewAccessor.setNeutralSuggestionStrip();
+                return;
+            }
+            final WordComposer composer = new WordComposer();
+            final int[] codePoints = StringUtils.toCodePointArray(word);
+            composer.setComposingWord(codePoints, mLatinIME.getCoordinatesForCurrentKeyboard(codePoints));
+            final SuggestedWords suggestedWords = mSuggest.getSuggestedWords(
+                    composer,
+                    getNgramContextFromNthPreviousWordForSuggestion(
+                            settingsValues.mSpacingAndPunctuations, 2),
+                    keyboard,
+                    settingsValues.mSettingsValuesForSuggestion,
+                    false /* isCorrectionEnabled */,
+                    SuggestedWords.INPUT_STYLE_TYPING,
+                    SuggestedWords.NOT_A_SEQUENCE_NUMBER);
+            mSuggestionStripViewAccessor.setSuggestions(suggestedWords);
+        } catch (Exception e) {
+            Log.w(TAG, "Hardware suggestions failed", e);
+            mSuggestionStripViewAccessor.setNeutralSuggestionStrip();
+        }
+    }
+
+    /** commitText inserts unless this prefix is selected or deleted first. */
+    private void replaceHardwarePrefixForSuggestion(final SettingsValues settingsValues) {
+        if (mConnection.hasSelection()) {
+            return;
+        }
+        final TextRange range = mConnection.getWordRangeAtCursor(settingsValues.mSpacingAndPunctuations);
+        if (range == null) {
+            return;
+        }
+        final int before = range.getNumberOfCharsInWordBeforeCursor();
+        final int after = range.getNumberOfCharsInWordAfterCursor();
+        if (before <= 0 && after <= 0) {
+            return;
+        }
+        if (after > 0) {
+            final int start = mConnection.getExpectedSelectionStart() - before;
+            final int end = mConnection.getExpectedSelectionEnd() + after;
+            if (start >= 0) {
+                mConnection.setSelection(start, end);
+            }
+            return;
+        }
+        mConnection.deleteTextBeforeCursor(before);
+    }
+
     public void performUpdateSuggestionStripSync(final SettingsValues settingsValues, final int inputStyle) {
         long startTimeMillis = 0;
         if (DebugFlags.DEBUG_ENABLED) {
@@ -1827,6 +1920,17 @@ public final class InputLogic {
             // Clear the suggestions strip.
             mSuggestionStripViewAccessor.setSuggestions(SuggestedWords.getEmptyInstance());
             return;
+        }
+
+        if (!mWordComposer.isComposingWord() && mLatinIME.isHardwareCandidateBar()) {
+            // A finished hardware word stays committed. Next-word prediction, when that setting
+            // is on, still uses the normal bigram path. A prefix uses a temporary composer.
+            if (mConnection.hasSelection() || !settingsValues.mSuggestionsEnabled
+                    || !isAtHardwareSuggestionBoundary(settingsValues)
+                    || !settingsValues.mBigramPredictionEnabled) {
+                updateHardwareCandidateSuggestions(settingsValues);
+                return;
+            }
         }
 
         if (!mWordComposer.isComposingWord() && !settingsValues.mBigramPredictionEnabled) {
@@ -1879,9 +1983,13 @@ public final class InputLogic {
      * @param settingsValues the current values of the settings.
      */
     public void restartSuggestionsOnWordTouchedByCursor(SettingsValues settingsValues) {
-        if (!mLatinIME.onEvaluateInputViewShown()) {
+        if (!mLatinIME.isSoftKeyboardShown()) {
             // setComposingRegion would hide the hardware-keyboard spell underline.
-            mConnection.finishComposingText();
+            if (mLatinIME.isHardwareCandidateBar()) {
+                updateHardwareCandidateSuggestions(settingsValues);
+            } else {
+                mConnection.finishComposingText();
+            }
             return;
         }
         // HACK: We may want to special-case some apps that exhibit bad behavior in case of

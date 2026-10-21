@@ -133,6 +133,8 @@ class ShadowInputMethodService {
         var composingStart = -1
         var composingEnd = -1
         var currentInputType = InputType.TYPE_CLASS_TEXT
+        /** LatinIME.onEvaluateInputViewShown calls through to this. Tests keep the soft keyboard up. */
+        var showSoftInputView = true
 
         // convenience for access
         val textBeforeCursor get() = text.substring(0, selectionStart)
@@ -152,6 +154,7 @@ class ShadowInputMethodService {
             composingStart = -1
             composingEnd = -1
             currentInputType = InputType.TYPE_CLASS_TEXT
+            showSoftInputView = true
         }
     }
 
@@ -166,7 +169,7 @@ class ShadowInputMethodService {
     fun isInputViewShown() = true // otherwise selection updates will do nothing
 
     @Implementation
-    fun onEvaluateInputViewShown() = true // LatinIME recorrects only while the soft keyboard is shown
+    fun onEvaluateInputViewShown() = showSoftInputView // LatinIME recorrects only while the soft keyboard is shown
 
     // essentially this is the text field we're editing in
     private val ic = object : InputConnection {
