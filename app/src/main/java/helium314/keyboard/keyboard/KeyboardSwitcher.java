@@ -352,11 +352,20 @@ public final class KeyboardSwitcher {
         KeyboardSwitchState currentState = getKeyboardSwitchState();
         Log.w(TAG, "onToggleKeyboard() : Current = " + currentState + " : Toggle = " + toggleState);
         if (currentState == toggleState) {
+            // The letter keys are gone, so this state looks hidden. Closing emoji must not
+            // dismiss the suggestion strip; a hardware keyboard will not ask for it again.
+            if (mLatinIME.hardwareCandidateBarWanted() && !mLatinIME.isSoftKeyboardShown()) {
+                resetKeyboardStateToAlphabet();
+                return;
+            }
             mLatinIME.stopShowingInputView();
             mLatinIME.hideWindow();
             resetKeyboardStateToAlphabet();
         } else {
-            mLatinIME.startShowingInputView(true);
+            // The strip's window is already up. startShowingInputView would flash the letter keys.
+            if (!mLatinIME.isInputViewShown()) {
+                mLatinIME.startShowingInputView(true);
+            }
             if (toggleState == KeyboardSwitchState.EMOJI) {
                 setEmojiKeyboard();
             } else if (toggleState == KeyboardSwitchState.CLIPBOARD) {
