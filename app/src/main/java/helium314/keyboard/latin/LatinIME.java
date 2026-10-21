@@ -256,7 +256,13 @@ public class LatinIME extends InputMethodService implements
                     }
                     break;
                 case MSG_RESUME_SUGGESTIONS:
-                    latinIme.mInputLogic.restartSuggestionsOnWordTouchedByCursor(latinIme.mSettings.getCurrent());
+                    // isInputViewShown() is only the decor. A hardware keyboard can show that
+                    // decor while onEvaluateInputViewShown() is false. Recorrection then hides
+                    // the spell underline, so resume only when the soft keyboard is actually up.
+                    if (latinIme.isInputViewShown() && latinIme.onEvaluateInputViewShown()) {
+                        latinIme.mInputLogic.restartSuggestionsOnWordTouchedByCursor(
+                                latinIme.mSettings.getCurrent());
+                    }
                     break;
                 case MSG_REOPEN_DICTIONARIES:
                     // We need to re-evaluate the currently composing word in case the script has
@@ -714,8 +720,8 @@ public class LatinIME extends InputMethodService implements
 
     /**
      * Dictionaries and the input connection have to be ready even when a hardware keyboard
-     * hides the view. Suggestions are resumed only while the soft keyboard is visible, because
-     * resuming them marks the current word as composing and the spell checker then skips it.
+     * hides the view. Suggestions are resumed only while the soft keyboard is visible.
+     * Resuming them marks the current word as composing, and that style hides the spell underline.
      *
      * @return true when loadKeyboard should wait for a cache retry
      */
@@ -1071,12 +1077,11 @@ public class LatinIME extends InputMethodService implements
                     + ", cs=" + composingSpanStart + ", ce=" + composingSpanEnd);
         }
 
-        // This call happens whether our view is displayed or not, but if it's not then we should
-        // not attempt recorrection. This is true even with a hardware keyboard connected: if the
-        // view is not displayed we have no means of showing suggestions anyway, and if it is then
-        // we want to show suggestions anyway.
+        // isInputViewShown() returns mDecorViewVisible. onShowInputRequested returns true when
+        // the hardware keyboard suppresses the IME, so the decor is visible while the soft
+        // keyboard is not. Recorrection would setComposingRegion and hide the spell underline.
         final SettingsValues settingsValues = mSettings.getCurrent();
-        if (isInputViewShown()
+        if (isInputViewShown() && onEvaluateInputViewShown()
                 && mInputLogic.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd,
                 composingSpanStart, composingSpanEnd, settingsValues)) {
             // we don't want to update a manually set shift state if selection changed towards one side

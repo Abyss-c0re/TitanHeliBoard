@@ -22,6 +22,38 @@ fun getTextWithAutoCorrectionIndicatorUnderline(context: Context?, text: String,
     return spannable
 }
 
+/**
+ * Red underline for a hardware-keyboard word. The span is not composing: a composing span is
+ * replaced on the next letter and its style hides the misspelled underline.
+ * [showSuggestions] adds the easy-correct popup only when there is at least one other word,
+ * so an empty popup is not shown before the spell checker replies.
+ */
+fun getTextWithMisspelledSpan(
+    context: Context,
+    word: String,
+    suggestions: Array<out String>?,
+    locale: Locale?,
+    showSuggestions: Boolean,
+): CharSequence {
+    if (word.isEmpty()) return word
+    val suggestionsList = ArrayList<String>()
+    if (showSuggestions && suggestions != null) {
+        for (suggestion in suggestions) {
+            if (suggestionsList.size >= SuggestionSpan.SUGGESTIONS_MAX_SIZE) break
+            if (suggestion.isEmpty() || suggestion == word) continue
+            suggestionsList.add(suggestion)
+        }
+    }
+    var flags = SuggestionSpan.FLAG_MISSPELLED
+    if (showSuggestions && suggestionsList.isNotEmpty()) {
+        flags = flags or SuggestionSpan.FLAG_EASY_CORRECT
+    }
+    val suggestionSpan = SuggestionSpan(context, locale, suggestionsList.toTypedArray(), flags, null)
+    val spannable = SpannableString(word)
+    spannable.setSpan(suggestionSpan, 0, word.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    return spannable
+}
+
 fun getTextWithSuggestionSpan(context: Context, pickedWord: String, suggestedWords: SuggestedWords, locale: Locale): CharSequence {
     if (pickedWord.isEmpty() || suggestedWords.isEmpty
         || suggestedWords.isPrediction || suggestedWords.isPunctuationSuggestions

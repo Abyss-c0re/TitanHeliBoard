@@ -166,7 +166,9 @@ public class SentenceLevelAdapter {
                 }
             }
             offsets[i] = item.mStart;
-            lengths[i] = item.mLength;
+            // An unchecked result must not be reported as a valid word. Length 0 clears the
+            // in-progress spell span and leaves an existing misspelled underline in place.
+            lengths[i] = AndroidSpellCheckerService.isUncheckedSuggestions(result) ? 0 : item.mLength;
             reconstructedSuggestions[i] = result != null ? result : EMPTY_SUGGESTIONS_INFO;
         }
         return new SentenceSuggestionsInfo(reconstructedSuggestions, offsets, lengths);

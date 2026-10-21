@@ -109,7 +109,7 @@ class KeyboardLayoutSet internal constructor(private val mContext: Context, priv
         lateinit var subtype: RichInputMethodSubtype
         var settingsValues: SettingsValues? = null
         // When the device is still locked, features like showing the IME setting app need to be locked down.
-        var deviceLocked = Settings.getValues().mIsLocked
+        var deviceLocked = Settings.getValues()?.mIsLocked == true
         var isSpellChecker = false
         var keyboardWidth = 0
         var keyboardHeight = 0

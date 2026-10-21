@@ -6,6 +6,7 @@
 
 package helium314.keyboard.latin.inputlogic;
 
+import static helium314.keyboard.latin.common.SuggestionSpanUtilsKt.getTextWithMisspelledSpan;
 import static helium314.keyboard.latin.common.SuggestionSpanUtilsKt.getTextWithSuggestionSpan;
 
 import android.graphics.Color;
@@ -21,6 +22,7 @@ import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.inputmethod.CorrectionInfo;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -54,6 +56,7 @@ import helium314.keyboard.latin.common.StringUtils;
 import helium314.keyboard.latin.common.StringUtilsKt;
 import helium314.keyboard.latin.common.SuggestionSpanUtilsKt;
 import helium314.keyboard.latin.define.DebugFlags;
+import helium314.keyboard.latin.settings.Defaults;
 import helium314.keyboard.latin.settings.Settings;
 import helium314.keyboard.latin.settings.SettingsValues;
 import helium314.keyboard.latin.settings.SpacingAndPunctuations;
@@ -62,6 +65,7 @@ import helium314.keyboard.latin.utils.AsyncResultHolder;
 import helium314.keyboard.latin.utils.DictionaryInfoUtils;
 import helium314.keyboard.latin.utils.GestureDataGatheringKt;
 import helium314.keyboard.latin.utils.InputTypeUtils;
+import helium314.keyboard.latin.utils.KtxKt;
 import helium314.keyboard.latin.utils.IntentUtils;
 import helium314.keyboard.latin.utils.Log;
 import helium314.keyboard.latin.utils.BackgroundGatheringCache;
@@ -1049,8 +1053,9 @@ public final class InputLogic {
             resetEntireInputState(mConnection.getExpectedSelectionStart(), mConnection.getExpectedSelectionEnd(), true);
             isComposingWord = false;
         }
-        // Hardware keys while the soft keyboard is hidden must be committed text. A composing
-        // span is skipped by the system spell checker, and there is no suggestion strip to replace it.
+        // Hardware keys while the soft keyboard is hidden stay committed. On current AOSP a
+        // composing span is not skipped by the spell checker, but setComposingText replaces the
+        // word on every letter and the composing style hides the red underline.
         final boolean commitForSpellChecker = event.getX() == Constants.EXTERNAL_KEYBOARD_COORDINATE
                 && !mLatinIME.onEvaluateInputViewShown();
         if (commitForSpellChecker && isComposingWord) {
@@ -1159,6 +1164,8 @@ public final class InputLogic {
             }
         }
 
+        underlineHardwareMisspelling(event, settingsValues);
+
         final boolean swapWeakSpace = tryStripSpaceAndReturnWhetherShouldSwapInstead(event, inputTransaction);
 
         final boolean isInsideDoubleQuoteOrAfterDigit = Constants.CODE_DOUBLE_QUOTE == codePoint
@@ -1246,6 +1253,91 @@ public final class InputLogic {
         }
 
         inputTransaction.requireShiftUpdate(InputTransaction.SHIFT_UPDATE_NOW);
+    }
+
+    /**
+     * After a hardware word separator, underline a finished word the dictionary does not know.
+     * The separator itself is committed by the caller after this returns.
+     */
+    private void underlineHardwareMisspelling(final Event event, final SettingsValues settingsValues) {
+        if (event.getX() != Constants.EXTERNAL_KEYBOARD_COORDINATE
+                || mLatinIME.onEvaluateInputViewShown()
+                || !settingsValues.isWordSeparator(event.getCodePoint())
+                || !settingsValues.mInputAttributes.mShouldShowSuggestions) {
+            return;
+        }
+        try {
+            if (mDictionaryFacilitator.hasAtLeastOneInitializedMainDictionary()) {
+                final TextRange range = mConnection.getWordRangeAtCursor(
+                        settingsValues.mSpacingAndPunctuations);
+                if (range != null) {
+                    final int before = range.getNumberOfCharsInWordBeforeCursor();
+                    if (before > 0 && before <= range.mWord.length()) {
+                        final String word = range.mWord.subSequence(0, before).toString();
+                        if (HardwareSpellKt.isMisspelling(word, mDictionaryFacilitator::isValidSpellingWord,
+                                settingsValues.mLocale)) {
+                            final boolean showSuggestions = KtxKt.prefs(mLatinIME).getBoolean(
+                                    Settings.PREF_SPELLCHECK_SUGGEST, Defaults.PREF_SPELLCHECK_SUGGEST);
+                            final String[] suggestions = showSuggestions
+                                    ? hardwareSuggestionStrings(word, settingsValues) : new String[0];
+                            final CharSequence spanned = getTextWithMisspelledSpan(mLatinIME, word,
+                                    suggestions, settingsValues.mLocale, showSuggestions);
+                            mConnection.deleteTextBeforeCursor(before);
+                            mConnection.commitText(spanned, 1);
+                        }
+                    }
+                }
+            }
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Hardware spell check failed", e);
+        }
+        postHardwareSpellCheck();
+    }
+
+    /** Suggestions for the misspelled span. An empty list still draws the red underline. */
+    private String[] hardwareSuggestionStrings(final String word, final SettingsValues settingsValues) {
+        try {
+            final Keyboard keyboard = KeyboardSwitcher.getInstance().getKeyboard();
+            if (keyboard == null || mSuggest == null) return new String[0];
+            final WordComposer composer = new WordComposer();
+            final int[] codePoints = StringUtils.toCodePointArray(word);
+            composer.setComposingWord(codePoints, mLatinIME.getCoordinatesForCurrentKeyboard(codePoints));
+            final SuggestedWords suggestedWords = mSuggest.getSuggestedWords(
+                    composer,
+                    getNgramContextFromNthPreviousWordForSuggestion(
+                            settingsValues.mSpacingAndPunctuations, 2),
+                    keyboard,
+                    settingsValues.mSettingsValuesForSuggestion,
+                    false /* isCorrectionEnabled */,
+                    SuggestedWords.INPUT_STYLE_TYPING,
+                    SuggestedWords.NOT_A_SEQUENCE_NUMBER);
+            final ArrayList<String> suggestions = new ArrayList<>();
+            for (int i = 0; i < suggestedWords.size()
+                    && suggestions.size() < SuggestionSpan.SUGGESTIONS_MAX_SIZE; i++) {
+                final SuggestedWordInfo info = suggestedWords.getInfo(i);
+                if (info.isKindOf(SuggestedWordInfo.KIND_PREDICTION) || word.equals(info.mWord)) {
+                    continue;
+                }
+                suggestions.add(info.mWord);
+            }
+            return suggestions.toArray(new String[0]);
+        } catch (Exception e) {
+            Log.w(TAG, "Hardware spell suggestions failed", e);
+            return new String[0];
+        }
+    }
+
+    /** Ask the editor to spell-check after this key's batch edit has ended. */
+    private void postHardwareSpellCheck() {
+        mLatinIME.mHandler.post(() -> {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return;
+            try {
+                final InputConnection ic = mLatinIME.getCurrentInputConnection();
+                if (ic != null) ic.performSpellCheck();
+            } catch (RuntimeException e) {
+                Log.w(TAG, "performSpellCheck failed", e);
+            }
+        });
     }
 
     /**
@@ -1775,6 +1867,11 @@ public final class InputLogic {
      * @param settingsValues the current values of the settings.
      */
     public void restartSuggestionsOnWordTouchedByCursor(SettingsValues settingsValues) {
+        if (!mLatinIME.onEvaluateInputViewShown()) {
+            // setComposingRegion would hide the hardware-keyboard spell underline.
+            mConnection.finishComposingText();
+            return;
+        }
         // HACK: We may want to special-case some apps that exhibit bad behavior in case of
         // recorrection. This is a temporary, stopgap measure that will be removed later.
         // TODO: remove this.

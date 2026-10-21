@@ -14,6 +14,7 @@ import android.service.textservice.SpellCheckerService
 import android.text.TextUtils
 import android.util.LruCache
 import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.InputMethodSubtype
 import android.view.textservice.SuggestionsInfo
 import android.view.textservice.TextInfo
 import com.android.inputmethod.latin.utils.BinaryDictionaryUtils
@@ -32,6 +33,7 @@ import helium314.keyboard.latin.utils.ScriptUtils.script
 import helium314.keyboard.latin.utils.StatsUtils
 import helium314.keyboard.latin.utils.SubtypeLocaleUtils
 import helium314.keyboard.latin.utils.SubtypeSettings.getSelectedSubtype
+import helium314.keyboard.latin.utils.locale
 import helium314.keyboard.latin.utils.SuggestionResults
 import helium314.keyboard.latin.utils.prefs
 import java.util.Locale
@@ -55,10 +57,11 @@ abstract class AndroidWordLevelSpellCheckerSession(private val mService: Android
 
     private fun updateLocale() {
         val localeString = getLocale()
+        val next = (localeString ?: SubtypeLocaleUtils.NO_LANGUAGE).constructLocale()
         val initialized = this::locale.isInitialized
-        if (!initialized || locale.toString() != localeString) {
-            Log.d(TAG, "Updating locale from ${if (initialized) locale.toString() else "null"} to $localeString")
-            locale = (localeString ?: SubtypeLocaleUtils.NO_LANGUAGE).constructLocale()
+        if (!initialized || locale != next) {
+            Log.d(TAG, "Updating locale from ${if (initialized) locale.toLanguageTag() else "null"} to ${next.toLanguageTag()}")
+            locale = next
             script = locale.script()
         }
     }
@@ -69,25 +72,45 @@ abstract class AndroidWordLevelSpellCheckerSession(private val mService: Android
 
     // unfortunately this can only return a string, with the obvious issues
     override fun getLocale(): String? {
-        // This function was taken from https://github.com/LineageOS/android_frameworks_base/blob/1235c24a0f092d0e41fd8e86f332f8dc03896a7b/services/core/java/com/android/server/TextServicesManagerService.java#L544 and slightly adopted.
-
+        // Prefer the keyboard language tag. The legacy subtype locale can be empty or "und"
+        // while languageTag is set, and the spell-checker subtype list is not the keyboard locale.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val imm = mService.applicationContext.getSystemService(InputMethodManager::class.java)
-            val currentInputMethodSubtype = imm?.currentInputMethodSubtype
-            if (currentInputMethodSubtype != null) {
-                val localeString = currentInputMethodSubtype.locale
-                if (localeString.isNotEmpty()) {
-                    return localeString // Use keyboard locale if available in the spell checker
-                }
-                // localeString for this app is always empty, get it from settings if possible
-                if (currentInputMethodSubtype.extraValue == "dummy") { // make sure this app is used
-                    return getSelectedSubtype(mService.prefs()).locale
-                }
-            }
+            val fromIme = imm?.currentInputMethodSubtype?.let { subtypeLanguageTag(it) }
+            if (!fromIme.isNullOrEmpty()) return fromIme
         }
-
-        // Fallback to system locale
+        selectedSubtypeLanguageTag()?.let { return it }
         return super.getLocale()
+    }
+
+    /** Language tag used to find dictionaries. Empty locales and "und" are not usable. */
+    private fun subtypeLanguageTag(subtype: InputMethodSubtype): String? {
+        val tag = subtype.locale().toLanguageTag()
+        if (tag.isNotEmpty() && tag != "und") return tag
+        if (subtype.extraValue == "dummy") return selectedSubtypeLanguageTag()
+        return null
+    }
+
+    private fun selectedSubtypeLanguageTag(): String? {
+        return try {
+            val tag = getSelectedSubtype(mService.prefs()).locale().toLanguageTag()
+            if (tag.isEmpty() || tag == "und") null else tag
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "Selected subtype locale is unavailable", e)
+            null
+        }
+    }
+
+    /**
+     * The session locale first. The selected subtype is tried once, and only when the first
+     * locale has no dictionary. Each check waits for the dictionary to load.
+     */
+    private fun localeWithMainDictionary(): Locale? {
+        if (mService.hasMainDictionaryForLocale(locale)) return locale
+        val selectedTag = selectedSubtypeLanguageTag() ?: return null
+        val selected = selectedTag.constructLocale()
+        if (selected == locale) return null
+        return if (mService.hasMainDictionaryForLocale(selected)) selected else null
     }
 
     override fun onClose() {
@@ -143,8 +166,15 @@ abstract class AndroidWordLevelSpellCheckerSession(private val mService: Android
 
             scriptToPunctuationRegexMap[script]?.let { text = text.replace(it, "") }
 
-            if (!mService.hasMainDictionaryForLocale(locale))
-                return AndroidSpellCheckerService.getNotInDictEmptySuggestions(false)
+            val dictLocale = localeWithMainDictionary()
+            if (dictLocale == null) {
+                // Attributes 0 with a positive length are treated as a valid word and remove FLAG_MISSPELLED.
+                return AndroidSpellCheckerService.getUncheckedSuggestions()
+            }
+            if (dictLocale != locale) {
+                locale = dictLocale
+                script = locale.script()
+            }
 
             // Handle special patterns like email, URI, telephone number.
             val checkability = getCheckabilityInScript(text, script)
@@ -167,9 +197,26 @@ abstract class AndroidWordLevelSpellCheckerSession(private val mService: Android
             if (!mService.prefs().getBoolean(Settings.PREF_SPELLCHECK_SUGGEST, Defaults.PREF_SPELLCHECK_SUGGEST))
                 return AndroidSpellCheckerService.getTypoNoUiSuggestions()
 
+            return suggestionsForKnownTypo(text, ngramContext, suggestionsLimit, capitalizeType)
+        } catch (e: RuntimeException) {
+            // Don't kill the keyboard if there is a bug in the spell checker.
+            // This word was not yet known to be a typo, so do not report it as a valid word.
+            Log.e(TAG, "Exception while spellchecking", e)
+            return AndroidSpellCheckerService.getUncheckedSuggestions()
+        }
+    }
+
+    /** The word is already absent from the dictionary. A failure here must still underline it. */
+    private fun suggestionsForKnownTypo(
+        text: String,
+        ngramContext: NgramContext?,
+        suggestionsLimit: Int,
+        capitalizeType: Int,
+    ): SuggestionsInfo {
+        try {
             val keyboard = mService.getKeyboardForLocale(locale)
             val composer = WordComposer()
-            if (locale.getLanguage() == "ko")
+            if (locale.language == "ko")
                 composer.restartCombining("hangul")
             val codePoints = StringUtils.toCodePointArray(text)
             composer.setComposingWord(codePoints, keyboard.getCoordinates(codePoints))
@@ -198,9 +245,8 @@ abstract class AndroidWordLevelSpellCheckerSession(private val mService: Android
             suggestionsCache.putSuggestionsToCache(text, result.mSuggestions, flags)
             return retval
         } catch (e: RuntimeException) {
-            // Don't kill the keyboard if there is a bug in the spell checker
-            Log.e(TAG, "Exception while spellchecking", e)
-            return AndroidSpellCheckerService.getNotInDictEmptySuggestions(false)
+            Log.e(TAG, "Exception while gathering spell suggestions", e)
+            return SuggestionsInfo(SuggestionsInfo.RESULT_ATTR_LOOKS_LIKE_TYPO, EMPTY_STRING_ARRAY)
         }
     }
 

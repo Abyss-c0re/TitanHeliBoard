@@ -165,6 +165,9 @@ class ShadowInputMethodService {
     @Implementation
     fun isInputViewShown() = true // otherwise selection updates will do nothing
 
+    @Implementation
+    fun onEvaluateInputViewShown() = true // LatinIME recorrects only while the soft keyboard is shown
+
     // essentially this is the text field we're editing in
     private val ic = object : InputConnection {
         // pretty clear (though this may be slow depending on the editor)

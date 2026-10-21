@@ -118,6 +118,24 @@ public final class AndroidSpellCheckerService extends SpellCheckerService
     }
 
     /**
+     * Not a word result. {@link SentenceLevelAdapter} reports length 0 for this so the framework
+     * does not treat it as a valid word and remove {@link android.text.style.SuggestionSpan#FLAG_MISSPELLED}.
+     * SuggestionsInfo is final, so the marker is a private-use token with no typo attribute.
+     */
+    public static final String UNCHECKED_TOKEN = "\uE000heliboard-unchecked";
+
+    public static SuggestionsInfo getUncheckedSuggestions() {
+        return new SuggestionsInfo(0, new String[] { UNCHECKED_TOKEN });
+    }
+
+    public static boolean isUncheckedSuggestions(final SuggestionsInfo info) {
+        return info != null
+                && info.getSuggestionsAttributes() == 0
+                && info.getSuggestionsCount() == 1
+                && UNCHECKED_TOKEN.equals(info.getSuggestionAt(0));
+    }
+
+    /**
      * Returns an empty SuggestionsInfo with flags signaling the word is not in the dictionary.
      * @param reportAsTypo whether this should include the flag LOOKS_LIKE_TYPO, for red underline.
      * @return the empty SuggestionsInfo with the appropriate flags set.
