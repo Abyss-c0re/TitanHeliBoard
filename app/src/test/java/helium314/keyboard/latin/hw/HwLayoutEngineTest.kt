@@ -106,6 +106,82 @@ class HwLayoutEngineTest {
         assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 2, time = 1800), false))
     }
 
+    @Test fun `a short sym press asks for the symbols keyboard`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = true
+        engine.noteField(text("com.example.notes"))
+        assertEquals(HwKeyDecision.Consume, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false))
+        assertEquals(HwKeyDecision.Symbols, engine.onKeyUp(up(KeyEvent.KEYCODE_ALT_RIGHT, time = 1100)))
+    }
+
+    @Test fun `sym with another key types the symbol and does not open the keyboard`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = true
+        engine.noteField(text("com.example.notes"))
+        assertEquals(HwKeyDecision.Consume, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false))
+        assertEquals(
+            HwKeyDecision.Type(':'.code, false),
+            engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1100, meta = KeyEvent.META_ALT_RIGHT_ON), false),
+        )
+        assertEquals(HwKeyDecision.Pass, engine.onKeyUp(up(KeyEvent.KEYCODE_ALT_RIGHT, time = 1200)))
+    }
+
+    @Test fun `holding sym does not open the symbols keyboard`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = true
+        engine.noteField(text("com.example.notes"))
+        assertEquals(HwKeyDecision.Consume, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false))
+        assertEquals(HwKeyDecision.Consume, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, repeat = 1, time = 1400), false))
+        assertEquals(HwKeyDecision.Pass, engine.onKeyUp(up(KeyEvent.KEYCODE_ALT_RIGHT, time = 1500)))
+    }
+
+    @Test fun `sym stays a modifier when the symbols switch is off`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = false
+        engine.noteField(text("com.example.notes"))
+        assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false))
+        assertEquals(HwKeyDecision.Pass, engine.onKeyUp(up(KeyEvent.KEYCODE_ALT_RIGHT, time = 1100)))
+        assertEquals(
+            HwKeyDecision.Type(':'.code, false),
+            engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1200, meta = KeyEvent.META_ALT_RIGHT_ON), false),
+        )
+    }
+
+    @Test fun `sym does not open symbols unless a text field requested input`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = true
+        engine.noteField(text("com.example.game", forced = false))
+        assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false))
+        assertEquals(HwKeyDecision.Pass, engine.onKeyUp(up(KeyEvent.KEYCODE_ALT_RIGHT, time = 1100)))
+    }
+
+    @Test fun `a sym release at the long press time does not open the symbols keyboard`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = true
+        engine.noteField(text("com.example.notes"))
+        assertEquals(HwKeyDecision.Consume, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false))
+        assertEquals(HwKeyDecision.Pass, engine.onKeyUp(up(KeyEvent.KEYCODE_ALT_RIGHT, time = 1300)))
+    }
+
+    @Test fun `ctrl and sym does not open the symbols keyboard`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = true
+        engine.noteField(text("com.example.notes"))
+        assertEquals(
+            HwKeyDecision.Pass,
+            engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000, meta = KeyEvent.META_CTRL_ON), false),
+        )
+        assertEquals(HwKeyDecision.Pass, engine.onKeyUp(up(KeyEvent.KEYCODE_ALT_RIGHT, time = 1100)))
+    }
+
+    @Test fun `sym does not open symbols for a null input type`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = true
+        engine.noteField(HwField("com.example.notes", InputType.TYPE_NULL, true))
+        assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false))
+        assertEquals(HwKeyDecision.Pass, engine.onKeyUp(up(KeyEvent.KEYCODE_ALT_RIGHT, time = 1100)))
+    }
+
     @Test fun `sym types the printed symbol and does not switch layout`() {
         val (prefs, engine) = rig()
         engine.noteField(text("com.example.notes"))
@@ -413,6 +489,7 @@ class HwLayoutEngineTest {
         override var spaceHold: Boolean = true
         override var toast: Boolean = true
         override var holdForSymbol: Boolean = false
+        override var symOpensSymbols: Boolean = false
         override var longPressMs: Int = 300
         override fun setCurrentId(id: String) { storedId = id }
     }

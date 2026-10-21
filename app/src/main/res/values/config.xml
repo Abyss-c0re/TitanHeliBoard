@@ -90,8 +90,9 @@
         <item>57,16</item> <!-- KeyEvent.KEYCODE_ALT_LEFT , KeyEvent.META_ALT_LEFT_ON -->
     </string-array>
 
-    <!-- Empty on purpose. Alt Right is Sym on the Titan keyboard and must not open the
-         on-screen symbols keyboard. Alt Left follows the physical keyboard Alt preference. -->
+    <!-- Empty on purpose. Alt Right is Sym. A short press opens symbols only when that
+         hardware-layout switch is on, and Sym with another key still types the printed symbol.
+         Alt Left follows the physical keyboard Alt preference. -->
     <string-array name="keyboard_switcher_symbols_shifted" translatable="false">
     </string-array>
 </resources>

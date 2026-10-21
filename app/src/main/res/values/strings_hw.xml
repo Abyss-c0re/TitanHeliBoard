@@ -15,6 +15,8 @@
     <string name="hw_layout_hold_repeat">Repeat keys</string>
     <string name="hw_layout_hold_symbol">Symbol for this layout</string>
     <string name="hw_layout_toast">Show layout name</string>
+    <string name="hw_sym_opens_symbols">Sym opens symbols</string>
+    <string name="hw_sym_opens_symbols_summary">A short press of Sym shows the symbols keyboard. Press Sym again to close it. Holding Sym with another key still types the symbol printed on that key.</string>
     <string name="hw_layout_switched">Hardware layout: %1$s</string>
     <string name="hw_layout_name_en_us">English (US)</string>
     <string name="hw_layout_name_ru_bbp">Russian</string>

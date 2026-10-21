@@ -140,6 +140,7 @@ object Defaults {
     const val PREF_HW_LAYOUT_SPACE_HOLD = true
     const val PREF_HW_LAYOUT_TOAST = true
     const val PREF_HW_LAYOUT_HOLD = HwLayouts.HOLD_REPEAT
+    const val PREF_HW_SYM_OPENS_SYMBOLS = true
     const val PREF_GESTURE_PREVIEW_TRAIL = true
     const val PREF_GESTURE_FLOATING_PREVIEW_TEXT = true
     const val PREF_GESTURE_FLOATING_PREVIEW_DYNAMIC = true

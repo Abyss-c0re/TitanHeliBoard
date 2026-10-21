@@ -88,6 +88,8 @@ public final class KeyboardSwitcher {
     private KeyboardState mState;
 
     private KeyboardLayoutSet mKeyboardLayoutSet;
+    /** reloadMainKeyboard restores symbols after the alphabet load. That load must not hide the window. */
+    private boolean mReloadingMainKeyboard;
 
     private KeyboardTheme mKeyboardTheme;
     private Context mThemeContext;
@@ -274,21 +276,27 @@ public final class KeyboardSwitcher {
     private void setMainKeyboardFrame(
             @NonNull final SettingsValues settingsValues,
             @NonNull final KeyboardSwitchState toggleState,
-            final boolean alphabetLayout) {
+            final boolean alphabetLayout,
+            final boolean dismissAlphabet) {
         // Alphabet keys stay down while the hardware strip is up, and while "only toolbar" is on.
         // Symbol, number, emoji, and d-pad layouts are requested from the toolbar and stay visible.
+        // Leaving symbols while the toolbar is hidden must not put the letter keys back.
         final boolean hideLetterKeys = alphabetLayout
-                && (mLatinIME.shouldHideHardwareLetterKeys() || Settings.getInstance().readShowToolbarOnly());
+                && (dismissAlphabet
+                || mLatinIME.shouldHideHardwareLetterKeys()
+                || Settings.getInstance().readShowToolbarOnly());
         final boolean suppressed = isImeSuppressedByHardwareKeyboard(settingsValues, toggleState)
                 && !hideLetterKeys;
-        final int stripVisibility = mLatinIME.hasSuggestionStripView() ? View.VISIBLE : View.GONE;
+        final int stripVisibility = (dismissAlphabet || !mLatinIME.hasSuggestionStripView())
+                ? View.GONE : View.VISIBLE;
         final int keyVisibility = (suppressed || hideLetterKeys) ? View.GONE : View.VISIBLE;
         final int frameVisibility = suppressed ? View.GONE : View.VISIBLE;
         final int wrapperVisibility = (suppressed || hideLetterKeys) ? View.GONE : View.VISIBLE;
         mStripContainer.setVisibility(stripVisibility);
         // The letter keys normally keep the strip above the gesture bar. With them gone, pad
         // the frame by the navigation-bar inset or the strip is drawn underneath it.
-        mHardwareStripNeedsBottomInset = hideLetterKeys;
+        // A window that is about to close does not need that pad.
+        mHardwareStripNeedsBottomInset = hideLetterKeys && !dismissAlphabet;
         applyHardwareStripBottomInset(mMainKeyboardFrame, ViewCompat.getRootWindowInsets(mMainKeyboardFrame));
         PointerTracker.switchTo(mKeyboardView);
         mKeyboardView.setVisibility(keyVisibility);
@@ -458,15 +466,70 @@ public final class KeyboardSwitcher {
     }
 
     public void reloadMainKeyboard() {
-        // Reload the entire keyboard, and switch to the previous layout
+        // Reload the entire keyboard, and switch to the previous layout.
+        // The alphabet load in the middle must not treat that as leaving the symbols page.
         final boolean wasEmoji = isShowingEmojiPalettes();
         final boolean wasClipboard = isShowingClipboardHistory();
-        loadKeyboard(mLatinIME.getCurrentInputEditorInfo(), Settings.getValues(),
-                mLatinIME.getCurrentAutoCapsState(), mLatinIME.getCurrentRecapitalizeState(), null);
-        if (wasEmoji) {
-            setEmojiKeyboard();
-        } else if (wasClipboard) {
-            setClipboardKeyboard();
+        final boolean wasSymbols = isShowingSymbolsKeyboard();
+        // The alphabet keyboard loaded below must not flash while symbols are put back.
+        final boolean holdLetters = wasSymbols && mLatinIME.shouldDismissAlphabetAfterSymbols();
+        if (holdLetters) mLatinIME.setOpeningHardwareSymbols(true);
+        mReloadingMainKeyboard = true;
+        try {
+            loadKeyboard(mLatinIME.getCurrentInputEditorInfo(), Settings.getValues(),
+                    mLatinIME.getCurrentAutoCapsState(), mLatinIME.getCurrentRecapitalizeState(), null);
+            if (wasEmoji) {
+                setEmojiKeyboard();
+            } else if (wasClipboard) {
+                setClipboardKeyboard();
+            } else if (wasSymbols) {
+                showSymbolsKeyboard();
+            }
+        } finally {
+            mReloadingMainKeyboard = false;
+            if (holdLetters) mLatinIME.setOpeningHardwareSymbols(false);
+        }
+    }
+
+    /** The on-screen symbols keyboard, or its second page, is showing. */
+    public boolean isShowingSymbolsKeyboard() {
+        return isShowingKeyboardId(KeyboardElement.SYMBOLS, KeyboardElement.SYMBOLS_SHIFTED);
+    }
+
+    /** Show the existing symbols layout. The symbols key on that layout opens more symbols. */
+    public void showSymbolsKeyboard() {
+        if (mKeyboardView == null || mState == null) return;
+        mState.setLayout(LayoutDirective.Utility.SYMBOLS);
+    }
+
+    /**
+     * Short Sym press. Opens the existing symbols keyboard, or closes it.
+     * The hardware strip stays when that strip is why the window is up.
+     * A hidden toolbar hides the window instead of leaving the letter keys.
+     */
+    public void toggleSymbolsFromPhysicalSym() {
+        if (isShowingSymbolsKeyboard()) {
+            // Alphabet layout sees the symbols keyboard that is still attached and,
+            // when the toolbar is hidden, drops the window after the keys are gone.
+            resetKeyboardStateToAlphabet();
+            return;
+        }
+        // isShowingSymbolsKeyboard() is false until the input frame is visible.
+        // Hold that frame open across the gap, including a Hidden toolbar.
+        mLatinIME.setOpeningHardwareSymbols(true);
+        try {
+            if (!mLatinIME.isInputViewShown()) {
+                // Do not use startShowingInputView. That forces the letter keys on for one pass.
+                mLatinIME.showWindow(true);
+            }
+            showSymbolsKeyboard();
+            mLatinIME.updateInputViewShown();
+        } finally {
+            mLatinIME.setOpeningHardwareSymbols(false);
+        }
+        if (!isShowingSymbolsKeyboard()) {
+            // The page did not attach. Do not leave an empty frame from the opening flag.
+            mLatinIME.updateInputViewShown();
         }
     }
 
@@ -848,20 +911,27 @@ public final class KeyboardSwitcher {
         // not a SwitchAction, but should only be called from a SwitchAction to avoid inconsistent state / actual layout
         private void setKeyboard(KeyboardElement keyboardElement, @NonNull KeyboardSwitchState toggleState) {
             // with a hardware keyboard we might get here without ever calling onCreateInputView, so don't crash
-            if (mKeyboardView == null) return;
+            if (mKeyboardView == null || mKeyboardLayoutSet == null) return;
 
+            final Keyboard previous = mKeyboardView.getKeyboard();
+            final boolean leavingSymbols = previous != null && isSymbolsElement(previous.mId.getElement());
+            // The ABC key and a second Sym press both land here. A hidden toolbar must not
+            // keep the window up with the letter keys. A reload restores symbols afterwards.
+            final boolean dismissAlphabet = keyboardElement.isAlphabet()
+                    && leavingSymbols
+                    && !mReloadingMainKeyboard
+                    && mLatinIME.shouldDismissAlphabetAfterSymbols();
             // Make {@link MainKeyboardView} visible and hide {@link EmojiPalettesView}.
             SettingsValues currentSettingsValues = Settings.getValues();
-            setMainKeyboardFrame(currentSettingsValues, toggleState, keyboardElement.isAlphabet());
+            setMainKeyboardFrame(currentSettingsValues, toggleState, keyboardElement.isAlphabet(), dismissAlphabet);
             // TODO: pass this object to setKeyboard instead of getting the current values.
             MainKeyboardView keyboardView = mKeyboardView;
-            Keyboard oldKeyboard = keyboardView.getKeyboard();
             Keyboard newKeyboard = mKeyboardLayoutSet.getKeyboard(keyboardElement);
             keyboardView.setKeyboard(newKeyboard);
             mCurrentInputView.setKeyboardTopPadding(newKeyboard.mTopPadding);
             keyboardView.setKeyPreviewPopupEnabled(currentSettingsValues.mKeyPreviewPopupOn);
             keyboardView.updateShortcutKey(mRichImm.isShortcutImeReady());
-            boolean subtypeChanged = (oldKeyboard == null) || !newKeyboard.mId.getSubtype().equals(oldKeyboard.mId.getSubtype());
+            boolean subtypeChanged = (previous == null) || !newKeyboard.mId.getSubtype().equals(previous.mId.getSubtype());
             int languageOnSpacebarFormatType = LanguageOnSpacebarUtils.getLanguageOnSpacebarFormatType(newKeyboard.mId.getSubtype());
             boolean hasMultipleEnabledIMEsOrSubtypes = mRichImm.hasMultipleEnabledIMEsOrSubtypes(true);
             keyboardView.startDisplayLanguageOnSpacebar(subtypeChanged, languageOnSpacebarFormatType, hasMultipleEnabledIMEsOrSubtypes);
@@ -870,6 +940,15 @@ public final class KeyboardSwitcher {
                 && (currentSettingsValues.mInlineEmojiSearch || currentSettingsValues.mSuggestEmojis)) {
                 EmojiParserKt.loadEmojiDefaultVersionsAndPopupSpecs(mThemeContext);
             }
+            if (dismissAlphabet) {
+                // hideWindow leaves the show request set, and the decor comes back as an empty bar.
+                mLatinIME.hideWindow();
+                mLatinIME.requestHideSelf(0);
+            }
         }
+    }
+
+    private static boolean isSymbolsElement(@NonNull final KeyboardElement element) {
+        return element == KeyboardElement.SYMBOLS || element == KeyboardElement.SYMBOLS_SHIFTED;
     }
 }

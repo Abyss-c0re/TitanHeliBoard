@@ -17,6 +17,8 @@ internal interface HwLayoutPreferences {
     val toast: Boolean
     /** When true, Sym or a held key types the active layout's symbol. Otherwise the key repeats. */
     val holdForSymbol: Boolean
+    /** A short Sym press opens the on-screen symbols keyboard. Sym with another key still types. */
+    val symOpensSymbols: Boolean
     val longPressMs: Int
     fun setCurrentId(id: String)
 }
@@ -35,6 +37,8 @@ internal sealed class HwKeyDecision {
     data object Pass : HwKeyDecision()
     data object Consume : HwKeyDecision()
     data object Enter : HwKeyDecision()
+    /** A short press of Sym, with no other key, opens or closes the symbols keyboard. */
+    data object Symbols : HwKeyDecision()
     data class Type(val codePoint: Int, val replaceLast: Boolean) : HwKeyDecision()
     data class Delete(val word: Boolean, val repeat: Boolean) : HwKeyDecision()
     data class Switched(val layoutId: String, val undoSpace: Boolean) : HwKeyDecision()
@@ -63,6 +67,9 @@ internal class HwLayoutEngine(
     private var shiftHeld = false
     private var altLeftHeld = false
     private var symHeld = false
+    private var symDownAt = -1L
+    /** True until another key, a repeat, or a long hold shows this Sym press is not a tap. */
+    private var symTapArmed = false
     private var shiftMode = HwModifierMode.OFF
     private var shiftPressAt = -1L
     private var lastShiftUpAt = -1L
@@ -90,15 +97,17 @@ internal class HwLayoutEngine(
         }
         val current = field
         if (current == null || !current.inputForced || current.inputType == InputType.TYPE_NULL) {
+            symTapArmed = false
             return HwKeyDecision.Pass
         }
 
         val code = event.keyCode
         val time = event.eventTime
         val repeat = event.repeatCount
+        if (!isAltRight(code)) symTapArmed = false
         if (isShift(code)) return onShiftDown(event, time, repeat)
         if (isAltLeft(code)) return onAltLeftDown(event, repeat)
-        if (isAltRight(code)) return onSymDown(repeat)
+        if (isAltRight(code)) return onSymDown(event, repeat)
         if (isCtrl(code) || event.isCtrlPressed) return HwKeyDecision.Pass
         if (code == KeyEvent.KEYCODE_SYM || code == KeyEvent.KEYCODE_PICTSYMBOLS) return HwKeyDecision.Pass
         if (code == KeyEvent.KEYCODE_DEL) return onDelete(event, repeat)
@@ -107,13 +116,25 @@ internal class HwLayoutEngine(
         return onCharacter(current, code, event, autoCap, time, repeat)
     }
 
-    fun onKeyUp(event: KeyEvent) {
-        if (!prefs.enabled || field == null) return
+    fun onKeyUp(event: KeyEvent): HwKeyDecision {
+        val current = field
+        if (!prefs.enabled || current == null) {
+            if (isAltRight(event.keyCode)) releaseSym(event.eventTime, false)
+            return HwKeyDecision.Pass
+        }
         val time = event.eventTime
-        when {
-            isShift(event.keyCode) -> onShiftUp(time)
-            isAltLeft(event.keyCode) -> altLeftHeld = false
-            isAltRight(event.keyCode) -> symHeld = false
+        val openSymbols = current.inputForced && current.inputType != InputType.TYPE_NULL
+        return when {
+            isShift(event.keyCode) -> {
+                onShiftUp(time)
+                HwKeyDecision.Pass
+            }
+            isAltLeft(event.keyCode) -> {
+                altLeftHeld = false
+                HwKeyDecision.Pass
+            }
+            isAltRight(event.keyCode) -> releaseSym(time, openSymbols)
+            else -> HwKeyDecision.Pass
         }
     }
 
@@ -174,11 +195,31 @@ internal class HwLayoutEngine(
         return HwKeyDecision.Pass
     }
 
-    /** Sym is held. It does not switch layout. Symbol substitution is a setting. */
-    private fun onSymDown(repeat: Int): HwKeyDecision {
-        if (repeat != 0) return HwKeyDecision.Pass
+    /**
+     * Sym is held so another key can type the printed symbol.
+     * A short press by itself is armed only while that setting is on.
+     */
+    private fun onSymDown(event: KeyEvent, repeat: Int): HwKeyDecision {
+        if (repeat != 0) {
+            symTapArmed = false
+            return if (symHeld && prefs.symOpensSymbols) HwKeyDecision.Consume else HwKeyDecision.Pass
+        }
         symHeld = true
-        return HwKeyDecision.Pass
+        symDownAt = event.eventTime
+        val arm = prefs.symOpensSymbols && !event.isCtrlPressed
+        symTapArmed = arm
+        return if (arm) HwKeyDecision.Consume else HwKeyDecision.Pass
+    }
+
+    private fun releaseSym(time: Long, openSymbols: Boolean): HwKeyDecision {
+        val armed = symTapArmed
+        val downAt = symDownAt
+        symHeld = false
+        symTapArmed = false
+        symDownAt = -1L
+        if (!openSymbols || !armed || !prefs.symOpensSymbols || downAt < 0L) return HwKeyDecision.Pass
+        if (time - downAt >= prefs.longPressMs) return HwKeyDecision.Pass
+        return HwKeyDecision.Symbols
     }
 
     private fun onDelete(event: KeyEvent, repeat: Int): HwKeyDecision {
@@ -338,6 +379,8 @@ internal class HwLayoutEngine(
         shiftHeld = false
         altLeftHeld = false
         symHeld = false
+        symDownAt = -1L
+        symTapArmed = false
         shiftMode = HwModifierMode.OFF
         shiftTyped = false
         shiftChord = false

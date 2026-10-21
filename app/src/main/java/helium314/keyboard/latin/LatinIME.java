@@ -152,6 +152,11 @@ public class LatinIME extends InputMethodService implements
     private boolean mIsExecutingStartShowingInputView;
     /** Letter keys are hidden and the suggestion strip is the input view. */
     private boolean mHardwareCandidateBar;
+    /**
+     * A Sym press is attaching the symbols keyboard. The frame has to stay up before that
+     * keyboard is visible, and the alphabet reload in between must not flash the letter keys.
+     */
+    private boolean mOpeningHardwareSymbols;
 
     // Used for re-initialize keyboard layout after onConfigurationChange.
     @Nullable
@@ -822,7 +827,27 @@ public class LatinIME extends InputMethodService implements
         if (mIsExecutingStartShowingInputView) {
             return false;
         }
+        // showWindow reloads the alphabet keyboard before the symbols page is attached.
+        if (mOpeningHardwareSymbols) {
+            return true;
+        }
         return onEvaluateInputViewShown() && mHardwareCandidateBar;
+    }
+
+    /** Hold the input frame open while Sym is switching to the symbols keyboard. */
+    public void setOpeningHardwareSymbols(final boolean opening) {
+        mOpeningHardwareSymbols = opening;
+    }
+
+    /**
+     * The symbols page is going back to alphabet while the toolbar is hidden.
+     * Letter keys must not replace it. A software keyboard the system asked for still may.
+     */
+    public boolean shouldDismissAlphabetAfterSymbols() {
+        if (mIsExecutingStartShowingInputView || mOpeningHardwareSymbols) return false;
+        if (isSystemInputViewRequested()) return false;
+        final SettingsValues values = mSettings.getCurrent();
+        return values != null && values.mHasHardwareKeyboard && values.mToolbarMode == ToolbarMode.HIDDEN;
     }
 
     /**
@@ -1474,8 +1499,18 @@ public class LatinIME extends InputMethodService implements
             mHardwareCandidateBar = false;
             return true;
         }
-        mHardwareCandidateBar = hardwareCandidateBarWanted();
+        // Treat the opening gap like the strip so a Hidden toolbar does not start a composing span.
+        mHardwareCandidateBar = mOpeningHardwareSymbols || hardwareCandidateBarWanted();
+        // The symbols keyboard is a real set of keys. Keep its frame up after a Sym press
+        // even when the suggestion strip is hidden. isShown() is false until this frame is visible,
+        // so the opening flag covers that gap.
+        if (mOpeningHardwareSymbols || mKeyboardSwitcher.isShowingSymbolsKeyboard()) return true;
         return mHardwareCandidateBar;
+    }
+
+    /** The system asked for a software keyboard. The hardware symbols page does not count. */
+    public boolean isSystemInputViewRequested() {
+        return super.onEvaluateInputViewShown();
     }
 
     @Override

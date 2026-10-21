@@ -5,6 +5,7 @@ import android.content.Context
 import android.view.KeyEvent
 import android.widget.Toast
 import helium314.keyboard.event.Event
+import helium314.keyboard.keyboard.KeyboardSwitcher
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import helium314.keyboard.latin.LatinIME
 import helium314.keyboard.latin.R
@@ -39,7 +40,7 @@ internal class HwLayoutController(private val latinIME: LatinIME) {
     private val engine = HwLayoutEngine(store, ::loadMapping)
     private val consumedDown = HashSet<Int>()
 
-    /** Hardware layouts are on, so Sym must not open the on-screen symbols keyboard. */
+    /** Hardware layouts are handling keys for this field. */
     fun isActive(): Boolean = store.enabled
 
     fun onKeyDown(keyCode: Int, event: KeyEvent): HwDispatch {
@@ -56,8 +57,13 @@ internal class HwLayoutController(private val latinIME: LatinIME) {
     fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         val field = currentField()
         engine.noteField(field)
-        engine.onKeyUp(event)
-        return consumedDown.remove(keyCode)
+        val decision = engine.onKeyUp(event)
+        val consumedEarlier = consumedDown.remove(keyCode)
+        if (decision is HwKeyDecision.Symbols) {
+            KeyboardSwitcher.getInstance().toggleSymbolsFromPhysicalSym()
+            return true
+        }
+        return consumedEarlier
     }
 
     private fun currentField(): HwField? {
@@ -93,6 +99,7 @@ internal class HwLayoutController(private val latinIME: LatinIME) {
                 finish(keyCode, event.repeatCount, consume = true)
             }
         }
+        HwKeyDecision.Symbols -> finish(keyCode, event.repeatCount, consume = true)
         HwKeyDecision.Enter -> {
             if (!canCommit()) finish(keyCode, event.repeatCount, consume = false)
             else {

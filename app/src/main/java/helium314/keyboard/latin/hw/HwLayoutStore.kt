@@ -45,6 +45,9 @@ internal class HwLayoutStore(context: Context) : HwLayoutPreferences {
     override val holdForSymbol: Boolean
         get() = prefs.getString(Settings.PREF_HW_LAYOUT_HOLD, Defaults.PREF_HW_LAYOUT_HOLD) == HwLayouts.HOLD_SYMBOL
 
+    override val symOpensSymbols: Boolean
+        get() = prefs.getBoolean(Settings.PREF_HW_SYM_OPENS_SYMBOLS, Defaults.PREF_HW_SYM_OPENS_SYMBOLS)
+
     override val longPressMs: Int
         get() = prefs.getInt(Settings.PREF_KEY_LONGPRESS_TIMEOUT, Defaults.PREF_KEY_LONGPRESS_TIMEOUT)
             .coerceIn(50, 5000)

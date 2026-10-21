@@ -72,7 +72,8 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     }
 
     override fun onKeyUp(keyCode: Int, keyEvent: KeyEvent): Boolean {
-        // Lone Alt follows the physical-keyboard Alt choice. Sym is Alt Right and is not a hotkey.
+        // Lone Alt follows the physical-keyboard Alt choice.
+        // A short Sym press is handled by the hardware layout when that switch is on.
         emojiAltPhysicalKeyDetector.onKeyUp(keyEvent)
         if (hwLayouts.onKeyUp(keyCode, keyEvent))
             return true
