@@ -120,9 +120,24 @@ fun Context.getDisplayContext(): Context {
     return createDisplayContext(wm.defaultDisplay)
 }
 
+/**
+ * The IME window is match-parent. If it can take focus, showing or hiding the strip
+ * pulls the cursor out of the editor.
+ */
+fun InputMethodService.keepImeWindowFromTakingFocus() {
+    val phoneWindow = window?.window ?: return
+    val params = phoneWindow.attributes ?: return
+    val flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+    if (params.flags != flags) {
+        params.flags = flags
+        phoneWindow.attributes = params
+    }
+}
+
 /** Override layout parameters to expand SoftInputWindow to the entire screen, See setInputView and SoftInputWindow.updateWidthHeight */
 fun InputMethodService.updateSoftInputWindowLayoutParameters(inputView: View?) {
     val window = window.window ?: return
+    keepImeWindowFromTakingFocus()
     ViewLayoutUtils.updateLayoutHeightOf(window, ViewGroup.LayoutParams.MATCH_PARENT)
 
     if (inputView == null) return

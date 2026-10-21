@@ -157,6 +157,12 @@ public class LatinIME extends InputMethodService implements
      * keyboard is visible, and the alphabet reload in between must not flash the letter keys.
      */
     private boolean mOpeningHardwareSymbols;
+    /** A hardware layout switch reloads the keyboard. That reload must not hide the window. */
+    private boolean mHardwareLayoutSwitch;
+    /** showWindow from Alt or Sym, for an editor that is already in a session. */
+    private boolean mShowingHardwarePanel;
+    /** Input logic has been started for the focused editor. Hide does not clear this. */
+    private boolean mFieldSessionReady;
 
     // Used for re-initialize keyboard layout after onConfigurationChange.
     @Nullable
@@ -802,7 +808,8 @@ public class LatinIME extends InputMethodService implements
         if (plan.showPanel) {
             if (!isInputViewShown()) {
                 // Do not use startShowingInputView. That forces the letter keys on for one pass.
-                showWindow(true);
+                // showHardwareWindow keeps the editor focused. showWindow alone restarts the session.
+                showHardwareWindow();
             } else {
                 // The input frame was set gone while the decor was still up. Show that frame again.
                 updateInputViewShown();
@@ -845,6 +852,8 @@ public class LatinIME extends InputMethodService implements
         if (isInputViewShown()) {
             // hideWindow() alone leaves the show request set. The decor is then put back,
             // and the strip background is still drawn in that window.
+            // The window must not be focusable, or this hide drops the editor's focus.
+            KtxKt.keepImeWindowFromTakingFocus(this);
             hideWindow();
             requestHideSelf(0);
         } else if (mInputView != null) {
@@ -874,7 +883,7 @@ public class LatinIME extends InputMethodService implements
      * Letter keys must not replace it. A software keyboard the system asked for still may.
      */
     public boolean shouldDismissAlphabetAfterSymbols() {
-        if (mIsExecutingStartShowingInputView || mOpeningHardwareSymbols) return false;
+        if (mIsExecutingStartShowingInputView || mOpeningHardwareSymbols || mHardwareLayoutSwitch) return false;
         if (isSystemInputViewRequested()) return false;
         final SettingsValues values = mSettings.getCurrent();
         return values != null && values.mHasHardwareKeyboard && values.mToolbarMode == ToolbarMode.HIDDEN;
@@ -890,6 +899,7 @@ public class LatinIME extends InputMethodService implements
     private boolean startInputForField(final EditorInfo editorInfo, final SettingsValues settingsValues,
             final boolean differentField, final boolean softKeyboardVisible) {
         mInputLogic.startInput(mRichImm.getCombiningRulesExtraValueOfCurrentSubtype(), settingsValues);
+        mFieldSessionReady = true;
         resetDictionaryFacilitatorIfNecessary();
         if (!mInputLogic.mConnection.resetCachesUponCursorMoveAndReturnSuccess(
                 editorInfo.initialSelStart, editorInfo.initialSelEnd,
@@ -987,6 +997,20 @@ public class LatinIME extends InputMethodService implements
         mStatsUtilsManager.onStartInputView();
     }
 
+    /**
+     * Show the hardware strip or the symbols page without starting a new editor session.
+     * showWindow reports restarting=false, and that restarts the input connection.
+     */
+    public void showHardwareWindow() {
+        KtxKt.keepImeWindowFromTakingFocus(this);
+        mShowingHardwarePanel = true;
+        try {
+            showWindow(true);
+        } finally {
+            mShowingHardwarePanel = false;
+        }
+    }
+
     @Override
     public void onFinishInputView(final boolean finishingInput) {
         StatsUtils.onFinishInputView();
@@ -1036,6 +1060,20 @@ public class LatinIME extends InputMethodService implements
         onCurrentInputMethodSubtypeChanged(subtype);
     }
 
+    /**
+     * Hardware Shift+Alt and space-hold. The reload inside the subtype change must not
+     * dismiss the window, or the next keys fall through to the framework.
+     */
+    public void switchToSubtypeFromHardwareLayout(final InputMethodSubtype subtype) {
+        final boolean previous = mHardwareLayoutSwitch;
+        mHardwareLayoutSwitch = true;
+        try {
+            switchToSubtype(subtype);
+        } finally {
+            mHardwareLayoutSwitch = previous;
+        }
+    }
+
     private void onStartInputInternal(EditorInfo editorInfo, boolean restarting) {
         super.onStartInput(editorInfo, restarting);
 
@@ -1049,6 +1087,26 @@ public class LatinIME extends InputMethodService implements
         if (subtypeForLocales != null) {
             // found a better subtype using hint locales and saved-per-app subtype, that we should switch to.
             mHandler.postSwitchLanguage(subtypeForLocales);
+        }
+        // The strip can stay hidden for the whole session. Dictionaries and the spell checker
+        // still have to start, or the later Alt show would restart this connection and drop focus.
+        if (editorInfo != null && editorInfo.inputType != InputType.TYPE_NULL
+                && (restarting || !mFieldSessionReady)) {
+            final SettingsValues existing = mSettings.getCurrent();
+            if (existing == null
+                    || !existing.isSameInputType(editorInfo)
+                    || !existing.hasSameOrientation(getResources().getConfiguration())) {
+                loadSettings();
+            }
+            final SettingsValues ready = mSettings.getCurrent();
+            if (ready != null) {
+                try {
+                    mInputLogic.startInput(mRichImm.getCombiningRulesExtraValueOfCurrentSubtype(), ready);
+                    mFieldSessionReady = true;
+                } catch (RuntimeException e) {
+                    Log.w(TAG, "hardware session start skipped", e);
+                }
+            }
         }
     }
 
@@ -1068,7 +1126,11 @@ public class LatinIME extends InputMethodService implements
         // settings, so currentSettingsValues can't be final.
         SettingsValues currentSettingsValues = mSettings.getCurrent();
         boolean inputTypeChanged = !currentSettingsValues.isSameInputType(editorInfo);
-        boolean isDifferentTextField = !restarting || inputTypeChanged;
+        // Alt and Sym call showWindow for an editor that is already active. The framework
+        // passes restarting=false, which used to restart the connection and drop focus.
+        final boolean keepHardwareSession = mShowingHardwarePanel && mFieldSessionReady;
+        final boolean restartingField = restarting || keepHardwareSession;
+        boolean isDifferentTextField = !restartingField || inputTypeChanged;
 
         // we want to reload the settings before calling updateKeyboardTheme, because updateKeyboardTheme reads SettingsValues.mToolbarMode
         if (isDifferentTextField || !currentSettingsValues.hasSameOrientation(getResources().getConfiguration())) {
@@ -1104,6 +1166,7 @@ public class LatinIME extends InputMethodService implements
         // Do not schedule a keyboard reload from here: the view does not exist yet.
         if (mainKeyboardView == null) {
             mInputLogic.startInput(mRichImm.getCombiningRulesExtraValueOfCurrentSubtype(), currentSettingsValues);
+            mFieldSessionReady = true;
             resetDictionaryFacilitatorIfNecessary();
             mInputLogic.mConnection.resetCachesUponCursorMoveAndReturnSuccess(
                     editorInfo.initialSelStart, editorInfo.initialSelEnd, true /* shouldFinishComposition */);
@@ -1141,8 +1204,12 @@ public class LatinIME extends InputMethodService implements
         // The app calling setText() has the effect of clearing the composing
         // span, so we should reset our state unconditionally, even if restarting is true.
         // A hardware keyboard still needs this, or dictionaries and the spell checker never start.
-        final boolean needToCallLoadKeyboardLater = startInputForField(editorInfo, currentSettingsValues,
-                isDifferentTextField, isSoftKeyboardShown());
+        // Showing the strip for a session that is already typing must not call startInput.
+        // That finishes the connection and the editor loses focus.
+        final boolean needToCallLoadKeyboardLater = keepHardwareSession
+                ? false
+                : startInputForField(editorInfo, currentSettingsValues,
+                        isDifferentTextField, isSoftKeyboardShown());
 
         if (isDifferentTextField) {
             mainKeyboardView.closing();
@@ -1153,7 +1220,7 @@ public class LatinIME extends InputMethodService implements
                 // later call will be done in #retryResetCaches.
                 switcher.saveKeyboardState();
             }
-        } else if (restarting) {
+        } else if (restartingField) {
             // TODO: Come up with a more comprehensive way to reset the keyboard layout when
             // a keyboard layout set doesn't get reloaded in this method.
             switcher.resetKeyboardStateToAlphabet();
@@ -1215,6 +1282,7 @@ public class LatinIME extends InputMethodService implements
 
     void onFinishInputInternal() {
         super.onFinishInput();
+        mFieldSessionReady = false;
         Log.i(TAG, "onFinishInput");
 
         mDictionaryFacilitator.onFinishInput();
@@ -1958,15 +2026,24 @@ public class LatinIME extends InputMethodService implements
     // Hooks for hardware keyboard
     @Override
     public boolean onKeyDown(final int keyCode, final KeyEvent keyEvent) {
-        if (mKeyboardActionListener.onKeyDown(keyCode, keyEvent))
-            return true;
+        try {
+            if (mKeyboardActionListener.onKeyDown(keyCode, keyEvent))
+                return true;
+        } catch (Throwable t) {
+            // An exception here used to kill the IME. The next keys then looked like the AOSP keyboard.
+            Log.e(TAG, "key down failed", t);
+        }
         return super.onKeyDown(keyCode, keyEvent);
     }
 
     @Override
     public boolean onKeyUp(final int keyCode, final KeyEvent keyEvent) {
-        if (mKeyboardActionListener.onKeyUp(keyCode, keyEvent))
-            return true;
+        try {
+            if (mKeyboardActionListener.onKeyUp(keyCode, keyEvent))
+                return true;
+        } catch (Throwable t) {
+            Log.e(TAG, "key up failed", t);
+        }
         return super.onKeyUp(keyCode, keyEvent);
     }
 

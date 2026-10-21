@@ -74,8 +74,11 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     override fun onKeyUp(keyCode: Int, keyEvent: KeyEvent): Boolean {
         // Lone Alt follows the physical-keyboard Alt choice.
         // A short Sym press is handled by the hardware layout when that switch is on.
-        emojiAltPhysicalKeyDetector.onKeyUp(keyEvent)
+        val altFired = emojiAltPhysicalKeyDetector.onKeyUp(keyEvent)
         if (hwLayouts.onKeyUp(keyCode, keyEvent))
+            return true
+        // The editor was receiving Alt and dropping focus when the strip toggled.
+        if (altFired && hwLayouts.ownsTextField())
             return true
         if (!settings.current.mEnableHardwareKeyboard)
             return false
@@ -85,10 +88,12 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     }
 
     override fun onKeyDown(keyCode: Int, keyEvent: KeyEvent): Boolean {
-        emojiAltPhysicalKeyDetector.onKeyDown(keyEvent)
+        val altArmed = emojiAltPhysicalKeyDetector.onKeyDown(keyEvent)
         when (hwLayouts.onKeyDown(keyCode, keyEvent)) {
             HwDispatch.IGNORE -> Unit
-            HwDispatch.PASS -> return false
+            // Lone Alt is a pass for the layout. Consume it when it is the toolbar or emoji chord
+            // so the focused editor does not see the key. Games and TYPE_NULL stay raw.
+            HwDispatch.PASS -> return altArmed && hwLayouts.ownsTextField()
             HwDispatch.CONSUME -> return true
         }
         if (!settings.current.mEnableHardwareKeyboard)

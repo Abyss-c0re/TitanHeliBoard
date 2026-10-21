@@ -543,7 +543,8 @@ public final class KeyboardSwitcher {
         try {
             if (!mLatinIME.isInputViewShown()) {
                 // Do not use startShowingInputView. That forces the letter keys on for one pass.
-                mLatinIME.showWindow(true);
+                // showHardwareWindow does not restart the editor session.
+                mLatinIME.showHardwareWindow();
             }
             showSymbolsKeyboard();
             mLatinIME.updateInputViewShown();
@@ -581,7 +582,7 @@ public final class KeyboardSwitcher {
 
     // Displays a toast-like message with the provided text for a specified duration.
     private void showFakeToast(final String text, final int timeMillis) {
-        if (mFakeToastView.getVisibility() == View.VISIBLE) return;
+        if (mFakeToastView == null || mFakeToastView.getVisibility() == View.VISIBLE) return;
 
         final Drawable appIcon = mFakeToastView.getCompoundDrawables()[0];
         if (appIcon != null) {
@@ -595,6 +596,7 @@ public final class KeyboardSwitcher {
         mFakeToastView.startAnimation(AnimationUtils.loadAnimation(mLatinIME, R.anim.fade_in));
 
         mFakeToastView.postDelayed(() -> {
+            if (mFakeToastView == null) return;
             mFakeToastView.startAnimation(AnimationUtils.loadAnimation(mLatinIME, R.anim.fade_out));
             mFakeToastView.setVisibility(View.GONE);
         }, timeMillis);

@@ -26,9 +26,20 @@ internal interface HwLayoutPreferences {
 internal data class HwField(
     val packageName: String,
     val inputType: Int,
-    /** True when the editor asked the IME to handle the field. Otherwise the key stays raw. */
+    /**
+     * True when this IME is in a text session.
+     * Hiding the strip clears the soft-input show request. That is not this flag.
+     */
     val inputForced: Boolean = true,
 )
+
+/**
+ * A connected text session keeps the hardware layout.
+ * [InputType.TYPE_NULL] and a session that never started stay raw, so games are left alone.
+ * The show request is the wrong signal: it is false whenever the strip is hidden.
+ */
+internal fun hwFieldIsForced(inputType: Int, inputStarted: Boolean): Boolean =
+    inputStarted && inputType != InputType.TYPE_NULL
 
 internal enum class HwModifierMode { OFF, ONCE, LOCK }
 
@@ -104,8 +115,8 @@ internal class HwLayoutEngine(
         val code = event.keyCode
         val time = event.eventTime
         val repeat = event.repeatCount
-        // Hiding the toolbar clears the show request. The text field is still focused.
-        // Sym still opens the symbols keyboard. Other keys stay raw until Sym is held.
+        // No text session: leave the key raw. Sym can still open the symbols keyboard
+        // when a field exists but the session has not started.
         if (!current.inputForced && !symWhileWindowHidden(code)) {
             symTapArmed = false
             return HwKeyDecision.Pass

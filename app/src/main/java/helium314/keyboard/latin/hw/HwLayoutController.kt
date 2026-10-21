@@ -3,7 +3,6 @@ package helium314.keyboard.latin.hw
 
 import android.content.Context
 import android.view.KeyEvent
-import android.widget.Toast
 import helium314.keyboard.event.Event
 import helium314.keyboard.keyboard.KeyboardSwitcher
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
@@ -66,13 +65,17 @@ internal class HwLayoutController(private val latinIME: LatinIME) {
         return consumedEarlier
     }
 
+    /** A text session is active. Lone Alt can be consumed instead of reaching the editor. */
+    fun ownsTextField(): Boolean = currentField()?.inputForced == true
+
     private fun currentField(): HwField? {
         val info = latinIME.currentInputEditorInfo ?: return null
         if (latinIME.currentInputConnection == null) return null
         return HwField(
             packageName = info.packageName.orEmpty(),
             inputType = info.inputType,
-            inputForced = latinIME.isShowInputRequested,
+            // isShowInputRequested is false while the strip is hidden. The editor is still ours.
+            inputForced = hwFieldIsForced(info.inputType, latinIME.currentInputStarted),
         )
     }
 
@@ -108,10 +111,16 @@ internal class HwLayoutController(private val latinIME: LatinIME) {
             }
         }
         is HwKeyDecision.Switched -> {
-            if (decision.undoSpace && canCommit()) send(Event.NOT_A_CODE_POINT, KeyCode.DELETE, repeat = false)
-            syncSubtype(decision.layoutId)
-            if (store.toast) showLayoutToast(decision.layoutId)
-            Log.i(TAG, "hardware layout -> ${decision.layoutId}")
+            // A toast or a subtype reload must not escape this key. An exception here used to
+            // kill the process or skip the consume, and the framework then showed its character picker.
+            try {
+                if (decision.undoSpace && canCommit()) send(Event.NOT_A_CODE_POINT, KeyCode.DELETE, repeat = false)
+                syncSubtype(decision.layoutId)
+                if (store.toast) showLayoutToast(decision.layoutId)
+                Log.i(TAG, "hardware layout -> ${decision.layoutId}")
+            } catch (t: Throwable) {
+                Log.e(TAG, "hardware layout switch failed", t)
+            }
             finish(keyCode, event.repeatCount, consume = true)
         }
     }
@@ -143,7 +152,7 @@ internal class HwLayoutController(private val latinIME: LatinIME) {
             if (current == language) return
             val match = SubtypeSettings.getEnabledSubtypes(true)
                 .firstOrNull { it.locale().language == language } ?: return
-            latinIME.switchToSubtype(match)
+            latinIME.switchToSubtypeFromHardwareLayout(match)
         } catch (t: RuntimeException) {
             Log.w(TAG, "subtype sync skipped", t)
         }
@@ -151,7 +160,9 @@ internal class HwLayoutController(private val latinIME: LatinIME) {
 
     private fun showLayoutToast(layoutId: String) {
         val name = hwLayoutLabel(latinIME, layoutId)
-        Toast.makeText(latinIME, latinIME.getString(R.string.hw_layout_switched, name), Toast.LENGTH_SHORT).show()
+        val text = latinIME.getString(R.string.hw_layout_switched, name)
+        // System toasts throw or are dropped from an IME on API 33+. The in-window toast does not.
+        KeyboardSwitcher.getInstance().showToast(text, true)
     }
 
     private fun loadMapping(id: String): HwKeyboardMapping? {

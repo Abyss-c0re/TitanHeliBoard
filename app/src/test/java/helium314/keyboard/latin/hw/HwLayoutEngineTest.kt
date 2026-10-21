@@ -50,6 +50,13 @@ class HwLayoutEngineTest {
         assertEquals(HwKeyDecision.Ignore, engine.onKeyDown(down(KeyEvent.KEYCODE_Q), autoCap = false))
     }
 
+    @Test fun `a hidden strip is still a text session`() {
+        assertTrue(hwFieldIsForced(InputType.TYPE_CLASS_TEXT, inputStarted = true))
+        assertTrue(hwFieldIsForced(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, true))
+        assertFalse(hwFieldIsForced(InputType.TYPE_NULL, inputStarted = true))
+        assertFalse(hwFieldIsForced(InputType.TYPE_CLASS_TEXT, inputStarted = false))
+    }
+
     @Test fun `keys stay raw unless a text field requested input`() {
         val (prefs, engine) = rig()
         engine.noteField(null)

@@ -67,7 +67,7 @@ public final class EmojiAltPhysicalKeyDetector {
             }
         }
 
-        public void onKeyUp(@NonNull final KeyEvent keyEvent) {
+        public boolean onKeyUp(@NonNull final KeyEvent keyEvent) {
             if (DEBUG) {
                 Log.d(TAG, "EmojiHotKeys.onKeyUp() - " + mName + " - considering " + keyEvent);
             }
@@ -81,6 +81,7 @@ public final class EmojiAltPhysicalKeyDetector {
                  metaState |= mMetaState;
             }
 
+            boolean fired = false;
             final Pair<Integer, Integer> key = Pair.create(keyCode, metaState);
             if (mKeySet.contains(key)) {
                 if (mCanFire) {
@@ -89,6 +90,7 @@ public final class EmojiAltPhysicalKeyDetector {
                             Log.d(TAG, "EmojiHotKeys.onKeyUp() - " + mName + " - firing action");
                         }
                         action();
+                        fired = true;
                     } else {
                         // This key up event was a part of key combinations and
                         // should be ignored.
@@ -106,6 +108,7 @@ public final class EmojiAltPhysicalKeyDetector {
                 }
                 mCanFire = false;
             }
+            return fired;
         }
 
         protected abstract void action();
@@ -145,28 +148,33 @@ public final class EmojiAltPhysicalKeyDetector {
         mHotKeysList.add(symbolsHotKeys);
     }
 
-    public void onKeyDown(@NonNull final KeyEvent keyEvent) {
+    /** True when this down armed a lone Alt action. The editor must not also receive that Alt. */
+    public boolean onKeyDown(@NonNull final KeyEvent keyEvent) {
         if (DEBUG) {
             Log.d(TAG, "onKeyDown(): " + keyEvent);
         }
 
-        if (shouldProcessEvent(keyEvent)) {
-            for (EmojiHotKeys hotKeys : mHotKeysList) {
-                hotKeys.onKeyDown(keyEvent);
-            }
+        if (!shouldProcessEvent(keyEvent)) return false;
+        boolean armed = false;
+        for (EmojiHotKeys hotKeys : mHotKeysList) {
+            hotKeys.onKeyDown(keyEvent);
+            if (hotKeys.mCanFire) armed = true;
         }
+        return armed;
     }
 
-    public void onKeyUp(@NonNull final KeyEvent keyEvent) {
+    /** True when the Alt action ran. The key up has to be consumed with the key down. */
+    public boolean onKeyUp(@NonNull final KeyEvent keyEvent) {
         if (DEBUG) {
             Log.d(TAG, "onKeyUp(): " + keyEvent);
         }
 
-        if (shouldProcessEvent(keyEvent)) {
-            for (EmojiHotKeys hotKeys : mHotKeysList) {
-                hotKeys.onKeyUp(keyEvent);
-            }
+        if (!shouldProcessEvent(keyEvent)) return false;
+        boolean fired = false;
+        for (EmojiHotKeys hotKeys : mHotKeysList) {
+            fired |= hotKeys.onKeyUp(keyEvent);
         }
+        return fired;
     }
 
     private static boolean shouldProcessEvent(@NonNull final KeyEvent keyEvent) {
