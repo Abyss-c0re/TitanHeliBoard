@@ -1362,7 +1362,10 @@ public final class InputLogic {
                 : InputTransaction.SHIFT_UPDATE_NOW;
         inputTransaction.requireShiftUpdate(shiftUpdateKind);
 
-        if (mWordComposer.isCursorFrontOrMiddleOfComposingWord()) {
+        // A hardware keyboard can leave this cache on a caret while the editor has a selection.
+        final boolean deleteSelection = mConnection.hasSelection() || mConnection.adoptEditorSelectionIfAny();
+
+        if (!deleteSelection && mWordComposer.isCursorFrontOrMiddleOfComposingWord()) {
             // If we are in the middle of a recorrection, we need to commit the recorrection
             // first so that we can remove the character at the current cursor position.
             // We also need to unlearn the original word that is now being corrected.
@@ -1371,7 +1374,7 @@ public final class InputLogic {
                     mConnection.getExpectedSelectionEnd(), true /* clearSuggestionStrip */);
             // When we exit this if-clause, mWordComposer.isComposingWord() will return false.
         }
-        if (mWordComposer.isComposingWord()) {
+        if (!deleteSelection && mWordComposer.isComposingWord()) {
             if (mWordComposer.isBatchMode()) {
                 final String rejectedSuggestion = mWordComposer.getTypedWord();
                 if (GestureDataGatheringKt.useBackgroundGathering)
@@ -1403,7 +1406,7 @@ public final class InputLogic {
             inputTransaction.setRequiresUpdateSuggestions();
             return;
         }
-        if (mLastComposedWord.canRevertCommit() && sv.mBackspaceRevertsAutocorrect) {
+        if (!deleteSelection && mLastComposedWord.canRevertCommit() && sv.mBackspaceRevertsAutocorrect) {
             String lastComposedWord = mLastComposedWord.mTypedWord;
             revertCommit(inputTransaction);
             StatsUtils.onRevertAutoCorrect();
@@ -1414,7 +1417,7 @@ public final class InputLogic {
             restartSuggestionsAfterDelete(inputTransaction);
             return;
         }
-        if (SpaceState.DOUBLE == inputTransaction.getSpaceState()) {
+        if (!deleteSelection && SpaceState.DOUBLE == inputTransaction.getSpaceState()) {
             cancelDoubleSpacePeriodCountdown();
             if (mConnection.revertDoubleSpacePeriod(sv.mSpacingAndPunctuations)) {
                 // No need to reset mSpaceState, it has already be done (that's why we
@@ -1424,7 +1427,7 @@ public final class InputLogic {
                 StatsUtils.onRevertDoubleSpacePeriod();
                 return;
             }
-        } else if (SpaceState.SWAP_PUNCTUATION == inputTransaction.getSpaceState()) {
+        } else if (!deleteSelection && SpaceState.SWAP_PUNCTUATION == inputTransaction.getSpaceState()) {
             if (mConnection.revertSwapPunctuation()) {
                 StatsUtils.onRevertSwapPunctuation();
                 // Likewise
@@ -1437,12 +1440,21 @@ public final class InputLogic {
         if (mConnection.hasSelection()) {
             // If there is a selection, remove it.
             // We also need to unlearn the selected text.
-            CharSequence selection = mConnection.getSelectedText(0);
-            if (!TextUtils.isEmpty(selection)) {
-                unlearnWord(selection.toString(), sv, DictionaryFacilitator.UnlearnEvent.BACKSPACE);
+            // Selection start can be greater than end when the user drags toward the start.
+            final int selStart = mConnection.getExpectedSelectionStart();
+            final int selEnd = mConnection.getExpectedSelectionEnd();
+            final int to = Math.max(selStart, selEnd);
+            final int numCharsDeleted = to - from;
+            if (selStart <= selEnd) {
+                final CharSequence selection = mConnection.getSelectedText(0);
+                if (!TextUtils.isEmpty(selection)) {
+                    unlearnWord(selection.toString(), sv, DictionaryFacilitator.UnlearnEvent.BACKSPACE);
+                }
             }
-            int numCharsDeleted = mConnection.getExpectedSelectionEnd() - mConnection.getExpectedSelectionStart();
-            mConnection.setSelection(mConnection.getExpectedSelectionEnd(), mConnection.getExpectedSelectionEnd());
+            if (mWordComposer.isComposingWord()) {
+                mWordComposer.reset();
+            }
+            mConnection.setSelection(to, to);
             mConnection.deleteTextBeforeCursor(numCharsDeleted);
             StatsUtils.onBackspaceSelectedText(numCharsDeleted);
             restartSuggestionsAfterDelete(inputTransaction);

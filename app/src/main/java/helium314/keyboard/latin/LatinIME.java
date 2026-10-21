@@ -1079,19 +1079,22 @@ public class LatinIME extends InputMethodService implements
 
         // isInputViewShown() returns mDecorViewVisible. onShowInputRequested returns true when
         // the hardware keyboard suppresses the IME, so the decor is visible while the soft
-        // keyboard is not. Recorrection would setComposingRegion and hide the spell underline.
+        // keyboard is not. The selection cache must still update, or backspace deletes the
+        // character before a stale caret and leaves the selection on screen. Recorrection is
+        // gated separately and would setComposingRegion, which hides the spell underline.
         final SettingsValues settingsValues = mSettings.getCurrent();
-        if (isInputViewShown() && onEvaluateInputViewShown()
-                && mInputLogic.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd,
-                composingSpanStart, composingSpanEnd, settingsValues)) {
-            // we don't want to update a manually set shift state if selection changed towards one side
-            // because this may end the manual shift, which is unwanted in case of shift + arrow keys for changing selection
-            // todo: this is not fully implemented yet, and maybe should be behind a setting
-            if (mKeyboardSwitcher.getKeyboard() != null && mKeyboardSwitcher.getKeyboard().mId.getElement().isAlphabetShiftedManually()
-                && ((oldSelEnd == newSelEnd && oldSelStart != newSelStart) || (oldSelEnd != newSelEnd && oldSelStart == newSelStart)))
-                return;
-            mKeyboardSwitcher.updateShiftState(getCurrentAutoCapsState(), getCurrentRecapitalizeState());
+        final boolean cursorMoved = mInputLogic.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd,
+                composingSpanStart, composingSpanEnd, settingsValues);
+        if (!cursorMoved || !isInputViewShown() || !onEvaluateInputViewShown()) {
+            return;
         }
+        // we don't want to update a manually set shift state if selection changed towards one side
+        // because this may end the manual shift, which is unwanted in case of shift + arrow keys for changing selection
+        // todo: this is not fully implemented yet, and maybe should be behind a setting
+        if (mKeyboardSwitcher.getKeyboard() != null && mKeyboardSwitcher.getKeyboard().mId.getElement().isAlphabetShiftedManually()
+            && ((oldSelEnd == newSelEnd && oldSelStart != newSelStart) || (oldSelEnd != newSelEnd && oldSelStart == newSelStart)))
+            return;
+        mKeyboardSwitcher.updateShiftState(getCurrentAutoCapsState(), getCurrentRecapitalizeState());
     }
 
     /**

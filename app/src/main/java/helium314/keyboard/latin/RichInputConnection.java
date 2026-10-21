@@ -1159,6 +1159,23 @@ public final class RichInputConnection implements PrivateCommandPerformer {
         return mExpectedSelEnd != mExpectedSelStart;
     }
 
+    /**
+     * The editor can have a selection before this cache hears about it. Hardware-keyboard
+     * backspace reads that selection without moving the caret.
+     * @return true when the cache now describes a non-empty selection
+     */
+    public boolean adoptEditorSelectionIfAny() {
+        if (!isConnected() || hasSelection()) return hasSelection();
+        final ExtractedText extracted = mIC.getExtractedText(new ExtractedTextRequest(), 0);
+        if (extracted == null || extracted.selectionStart < 0 || extracted.selectionEnd < 0) return false;
+        final int start = extracted.selectionStart + extracted.startOffset;
+        final int end = extracted.selectionEnd + extracted.startOffset;
+        if (start == end) return false;
+        mExpectedSelStart = start;
+        mExpectedSelEnd = end;
+        return true;
+    }
+
     public boolean isCursorPositionKnown() {
         return INVALID_CURSOR_POSITION != mExpectedSelStart;
     }

@@ -114,6 +114,19 @@ class InputLogicTest {
         assertEquals("hello there ", text)
     }
 
+    @Test fun backspaceDeletesASelectionTheCacheDoesNotKnowAbout() {
+        setText("hello world")
+        setCursorPosition(0, 5)
+        val start = RichInputConnection::class.java.getDeclaredField("mExpectedSelStart").apply { isAccessible = true }
+        val end = RichInputConnection::class.java.getDeclaredField("mExpectedSelEnd").apply { isAccessible = true }
+        start.setInt(connection, text.length)
+        end.setInt(connection, text.length)
+        functionalKeyPress(KeyCode.DELETE)
+        assertEquals(" world", text)
+        assertEquals(0, selectionStart)
+        assertEquals(0, selectionEnd)
+    }
+
     @Test fun deleteInsideWord() {
         setText("hello you there")
         setCursorPosition(8) // after o in you
