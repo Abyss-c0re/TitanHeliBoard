@@ -553,5 +553,19 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         var DEBUG_SUGGESTIONS = false
         private const val DEBUG_INFO_TEXT_SIZE_IN_DIP = 6.5f
         private val TAG = SuggestionStripView::class.java.simpleName
+
+        /**
+         * Shrink the extra-suggestion panel only when the space can hold a row.
+         * A hardware strip used to pass a remaining height of 0 and pin the count there.
+         */
+        @JvmStatic
+        fun cappedMoreSuggestionRows(currentRows: Int, remainingHeight: Int, rowHeight: Int, bottomGap: Int): Int {
+            if (rowHeight <= 0 || currentRows < 1) return currentRows.coerceAtLeast(0)
+            val currentHeight = currentRows * rowHeight + bottomGap
+            if (currentHeight <= remainingHeight) return currentRows
+            val rows = (remainingHeight - bottomGap) / rowHeight
+            if (rows < 1) return currentRows
+            return rows
+        }
     }
 }

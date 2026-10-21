@@ -1281,7 +1281,11 @@ public class LatinIME extends InputMethodService implements
             }
             outInsets.contentTopInsets = visibleTopY;
             outInsets.visibleTopInsets = visibleTopY;
-            outInsets.touchableInsets = InputMethodService.Insets.TOUCHABLE_INSETS_VISIBLE;
+            // The extra-suggestion panel is drawn above the strip, outside the visible inset.
+            // The whole window has to take touches while it is open, or taps fall through to the app.
+            outInsets.touchableInsets = mKeyboardSwitcher.isShowingPopupKeysPanel()
+                    ? InputMethodService.Insets.TOUCHABLE_INSETS_FRAME
+                    : InputMethodService.Insets.TOUCHABLE_INSETS_VISIBLE;
             mInsetsUpdater.setInsets(outInsets);
             return;
         }

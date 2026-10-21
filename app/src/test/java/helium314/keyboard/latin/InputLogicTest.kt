@@ -27,6 +27,7 @@ import helium314.keyboard.latin.common.StringUtils
 import helium314.keyboard.latin.inputlogic.InputLogic
 import helium314.keyboard.latin.inputlogic.SpaceState
 import helium314.keyboard.latin.settings.Settings
+import helium314.keyboard.latin.suggestions.SuggestionStripView
 import helium314.keyboard.latin.utils.ScriptUtils
 import helium314.keyboard.latin.utils.SubtypeSettings
 import helium314.keyboard.latin.utils.ToolbarMode
@@ -188,6 +189,13 @@ class InputLogicTest {
                 latinIME, Locale.US, InputAttributes(editorInfo, false, editorInfo.packageName)
             )
         }
+    }
+
+    @Test fun hardwareMoreSuggestionsDoNotCollapse() {
+        assertEquals(2, SuggestionStripView.cappedMoreSuggestionRows(2, 0, 40, 6))
+        assertEquals(2, SuggestionStripView.cappedMoreSuggestionRows(2, 20, 40, 6))
+        assertEquals(1, SuggestionStripView.cappedMoreSuggestionRows(2, 46, 40, 6))
+        assertEquals(6, SuggestionStripView.cappedMoreSuggestionRows(6, 1200, 40, 6))
     }
 
     @Test fun hardwareStripSitsAboveTheNavigationBar() {
