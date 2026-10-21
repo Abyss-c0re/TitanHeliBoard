@@ -1,18 +1,35 @@
 # TitanHeliBoard
 
-HeliBoard fork for the Unihertz Titan hardware keyboard.
+**This repository is a fork of [HeliBoard](https://github.com/HeliBorg/HeliBoard) for the Unihertz Titan 2.**
 
-- Layouts are English (US), Russian, and Spanish (Spain). Russian is the BlackBerry Passport layout. Alt+Shift, or holding Space, switches layout.
-- The hardware layout settings choose what a hold does: repeat the key, or type the symbol from the current layout. Sym is Alt Right.
-- Keys stay raw unless a text field requested the keyboard.
+It is the Titan 2 hardware-keyboard build. It is not upstream HeliBoard, and it is not a keyboard for the original Unihertz Titan. Download it from [this repository's releases](https://github.com/Abyss-c0re/TitanHeliBoard/releases). The F-Droid and IzzyOnDroid badges in the upstream section below install upstream HeliBoard, which does not contain this Titan 2 work.
+
+The application id is still `helium314.keyboard`, the same id as HeliBoard, so this package replaces an installed HeliBoard. The version shown in the app is `4.3-beta1` (versionCode 4300): that is the HeliBoard version this fork is based on. Releases in this repository are tagged `titan2-*` so they stay distinct from upstream HeliBoard releases.
+
+Hardware layouts turn on when the device model contains "titan". The maps are adapted from [PocketBoard](https://github.com/SinuXVR/pocket-board) (GPL-3.0-only) and follow the legends printed on the Titan 2 keyboard. Numbers are on the left: Q is 0, W is 1, E is 2, R is 3.
+
+## Titan 2 hardware keyboard
+
+- Layouts are English (US), Russian, and Spanish (Spain). Russian is the BlackBerry Passport layout. Alt+Shift, or holding Space, switches layout. The space typed at the start of a hold is removed when the layout changes.
+- The hold action in hardware layout settings either repeats the key, or types the symbol printed on that key for the current layout.
+- Sym is the right Alt key. A short press opens the on-screen symbols keyboard, including while the toolbar is hidden. Press Sym again to close it. Holding Sym with another key still types the symbol printed on that key.
+- Left Alt follows the Physical keyboard Alt setting: Nothing, Emojis, or Toggle the toolbar. Toggle hides the whole panel, or shows it again.
+- Keys stay raw unless a text field has a real text session. Games, emulators, and fields that do not request text are left alone.
+- Suggestions, the spell-check underline, and the toolbar work while typing on the hardware keyboard. Backspace deletes a selection.
+
+Report Titan 2 hardware-keyboard issues on [this repository](https://github.com/Abyss-c0re/TitanHeliBoard/issues). Report general HeliBoard issues on [HeliBorg/HeliBoard](https://github.com/HeliBorg/HeliBoard/issues).
+
+Everything under the next heading is the upstream HeliBoard readme: features, community, license, and credits.
 
 # HeliBoard
 HeliBoard is a privacy-conscious and customizable open-source keyboard, based on AOSP / OpenBoard.
 Does not use internet permission, and thus is 100% offline.
 
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/packages/helium314.keyboard/)
-[<img src="https://user-images.githubusercontent.com/663460/26973090-f8fdc986-4d14-11e7-995a-e7c5e79ed925.png" alt="Get APK from GitHub" height="80">](https://github.com/HeliBorg/HeliBoard/releases/latest)
-[<img src="https://gitlab.com/IzzyOnDroid/repo/-/raw/master/assets/IzzyOnDroid.png" alt="Get it on IzzyOnDroid" height="80">](https://apt.izzysoft.de/fdroid/index/apk/helium314.keyboard)
+The GitHub badge below is this Titan 2 fork. F-Droid and IzzyOnDroid are upstream HeliBoard.
+
+[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Upstream HeliBoard on F-Droid" height="80">](https://f-droid.org/packages/helium314.keyboard/)
+[<img src="https://user-images.githubusercontent.com/663460/26973090-f8fdc986-4d14-11e7-995a-e7c5e79ed925.png" alt="TitanHeliBoard APK on GitHub" height="80">](https://github.com/Abyss-c0re/TitanHeliBoard/releases/latest)
+[<img src="https://gitlab.com/IzzyOnDroid/repo/-/raw/master/assets/IzzyOnDroid.png" alt="Upstream HeliBoard on IzzyOnDroid" height="80">](https://apt.izzysoft.de/fdroid/index/apk/helium314.keyboard)
 
 ## Table of Contents
 
@@ -134,6 +151,7 @@ The icon is licensed under [Creative Commons BY-SA 4.0](https://creativecommons.
 - Icon by [Fabian OvrWrt](https://github.com/FabianOvrWrt) with contributions from [The Eclectic Dyslexic](https://github.com/the-eclectic-dyslexic)
 - [OpenBoard](https://github.com/openboard-team/openboard)
 - [AOSP Keyboard](https://android.googlesource.com/platform/packages/inputmethods/LatinIME/)
+- [PocketBoard](https://github.com/SinuXVR/pocket-board) hardware layouts, adapted for the Titan 2 key maps in this fork
 - [LineageOS](https://review.lineageos.org/admin/repos/LineageOS/android_packages_inputmethods_LatinIME)
 - [Simple Keyboard](https://github.com/rkkr/simple-keyboard)
 - [Indic Keyboard](https://gitlab.com/indicproject/indic-keyboard)
