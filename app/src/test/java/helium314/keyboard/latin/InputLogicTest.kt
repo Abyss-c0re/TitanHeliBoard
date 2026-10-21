@@ -190,6 +190,13 @@ class InputLogicTest {
         }
     }
 
+    @Test fun hardwareStripSitsAboveTheNavigationBar() {
+        // Titan 2: IME window 1396px, strip ~63px, gesture inset 88px.
+        assertEquals(1245, KeyboardSwitcher.visibleTopAboveNavigationBar(1396, 63, 88))
+        assertEquals(1333, KeyboardSwitcher.visibleTopAboveNavigationBar(1396, 63, 0))
+        assertEquals(0, KeyboardSwitcher.visibleTopAboveNavigationBar(40, 63, 88))
+    }
+
     private fun loadHardwareStripSettings(editorInfo: EditorInfo, mode: ToolbarMode, showSuggestions: Boolean) {
         latinIME.prefs().edit()
             .putString(Settings.PREF_TOOLBAR_MODE, mode.name)

@@ -31,6 +31,8 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import helium314.keyboard.event.Event;
 import helium314.keyboard.keyboard.clipboard.ClipboardHistoryView;
@@ -80,6 +82,8 @@ public final class KeyboardSwitcher {
     private LatinIME mLatinIME;
     private RichInputMethodManager mRichImm;
     private boolean mIsHardwareAcceleratedDrawingEnabled;
+    /** Letter keys are hidden, so the strip must clear the navigation / gesture bar. */
+    private boolean mHardwareStripNeedsBottomInset;
 
     private KeyboardState mState;
 
@@ -230,6 +234,43 @@ public final class KeyboardSwitcher {
         return settingsValues.mHasHardwareKeyboard && toggleState == KeyboardSwitchState.HIDDEN;
     }
 
+    /**
+     * Top of the strip inside a full-screen input window, above the navigation-bar inset.
+     * Returns 0 when that top would be above the window.
+     */
+    public static int visibleTopAboveNavigationBar(final int inputHeight, final int stripHeight, final int bottomInset) {
+        return Math.max(0, inputHeight - Math.max(0, stripHeight) - Math.max(0, bottomInset));
+    }
+
+    public int getHardwareStripBottomInset() {
+        if (!mHardwareStripNeedsBottomInset || mMainKeyboardFrame == null) {
+            return 0;
+        }
+        return mMainKeyboardFrame.getPaddingBottom();
+    }
+
+    private void clearHardwareStripBottomInset() {
+        mHardwareStripNeedsBottomInset = false;
+        applyHardwareStripBottomInset(mMainKeyboardFrame, ViewCompat.getRootWindowInsets(mMainKeyboardFrame));
+    }
+
+    private void applyHardwareStripBottomInset(@Nullable final View frame, @Nullable final WindowInsetsCompat insets) {
+        if (frame == null) {
+            return;
+        }
+        final int bottom = mHardwareStripNeedsBottomInset ? navigationBarBottom(insets) : 0;
+        if (frame.getPaddingBottom() != bottom) {
+            frame.setPadding(frame.getPaddingLeft(), frame.getPaddingTop(), frame.getPaddingRight(), bottom);
+        }
+    }
+
+    private static int navigationBarBottom(@Nullable final WindowInsetsCompat insets) {
+        if (insets == null) {
+            return 0;
+        }
+        return insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+    }
+
     private void setMainKeyboardFrame(
             @NonNull final SettingsValues settingsValues,
             @NonNull final KeyboardSwitchState toggleState,
@@ -245,6 +286,10 @@ public final class KeyboardSwitcher {
         final int frameVisibility = suppressed ? View.GONE : View.VISIBLE;
         final int wrapperVisibility = (suppressed || hideLetterKeys) ? View.GONE : View.VISIBLE;
         mStripContainer.setVisibility(stripVisibility);
+        // The letter keys normally keep the strip above the gesture bar. With them gone, pad
+        // the frame by the navigation-bar inset or the strip is drawn underneath it.
+        mHardwareStripNeedsBottomInset = hideLetterKeys;
+        applyHardwareStripBottomInset(mMainKeyboardFrame, ViewCompat.getRootWindowInsets(mMainKeyboardFrame));
         PointerTracker.switchTo(mKeyboardView);
         mKeyboardView.setVisibility(keyVisibility);
         // The visibility of {@link #mKeyboardView} must be aligned with {@link #MainKeyboardFrame}.
@@ -557,6 +602,10 @@ public final class KeyboardSwitcher {
         updateKeyboardThemeAndContextThemeWrapper(displayContext, KeyboardTheme.getKeyboardTheme(displayContext));
         mCurrentInputView = (InputView)LayoutInflater.from(mThemeContext).inflate(R.layout.input_view, null);
         mMainKeyboardFrame = mCurrentInputView.findViewById(R.id.main_keyboard_frame);
+        ViewCompat.setOnApplyWindowInsetsListener(mMainKeyboardFrame, (view, insets) -> {
+            applyHardwareStripBottomInset(view, insets);
+            return insets;
+        });
         mEmojiPalettesView = mCurrentInputView.findViewById(R.id.emoji_palettes_view);
         mClipboardHistoryView = mCurrentInputView.findViewById(R.id.clipboard_history_view);
         mFakeToastView = mCurrentInputView.findViewById(R.id.fakeToast);
@@ -648,6 +697,7 @@ public final class KeyboardSwitcher {
             if (DEBUG_ACTION) {
                 Log.d(TAG, "setEmojiKeyboard");
             }
+            clearHardwareStripBottomInset();
             mKeyboardViewWrapper.setVisibility(View.VISIBLE);
             mMainKeyboardFrame.setVisibility(View.VISIBLE);
             // The visibility of {@link #mKeyboardView} must be aligned with {@link #MainKeyboardFrame}.
@@ -669,6 +719,7 @@ public final class KeyboardSwitcher {
             if (DEBUG_ACTION) {
                 Log.d(TAG, "setClipboardKeyboard");
             }
+            clearHardwareStripBottomInset();
             mKeyboardViewWrapper.setVisibility(View.VISIBLE);
             mMainKeyboardFrame.setVisibility(View.VISIBLE);
             // The visibility of {@link #mKeyboardView} must be aligned with {@link #MainKeyboardFrame}.

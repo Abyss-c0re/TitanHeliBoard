@@ -1274,7 +1274,8 @@ public class LatinIME extends InputMethodService implements
             if (stripHeight <= 0) {
                 stripHeight = getResources().getDimensionPixelSize(R.dimen.config_suggestions_strip_height);
             }
-            final int visibleTopY = Math.max(0, inputHeight - stripHeight);
+            final int visibleTopY = KeyboardSwitcher.visibleTopAboveNavigationBar(
+                    inputHeight, stripHeight, mKeyboardSwitcher.getHardwareStripBottomInset());
             if (hasSuggestionStripView()) {
                 mSuggestionStripView.setMoreSuggestionsHeight(visibleTopY);
             }
