@@ -949,7 +949,7 @@ New dictionary:
     <!-- Title of the setting for showing toolbar only when a hardware keyboard is connected -->
     <string name="toolbar_only_with_hw_keyboard">Show only toolbar with physical keyboard</string>
     <!-- Description of the setting for showing toolbar only when a hardware keyboard is connected -->
-    <string name="toolbar_only_with_hw_keyboard_summary">You still need to enable showing virtual keyboard in system settings</string>
+    <string name="toolbar_only_with_hw_keyboard_summary">The letter keys stay hidden. The toolbar stays available without the system virtual-keyboard setting.</string>
     <!-- Title of the settings for adjusting the language swipe gesture distance -->
     <string name="prefs_language_swipe_distance">Switch language swipe distance</string>
     <!-- Title of the setting to customize toolbar key codes -->

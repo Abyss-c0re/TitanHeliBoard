@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package helium314.keyboard.latin
 
+import android.content.res.Configuration
 import android.os.Handler
 import android.os.Message
 import android.text.InputType
@@ -28,6 +29,7 @@ import helium314.keyboard.latin.inputlogic.SpaceState
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.utils.ScriptUtils
 import helium314.keyboard.latin.utils.SubtypeSettings
+import helium314.keyboard.latin.utils.ToolbarMode
 import helium314.keyboard.latin.utils.getTimestampFormatter
 import helium314.keyboard.latin.utils.prefs
 import org.junit.runner.RunWith
@@ -45,6 +47,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
 @Config(shadows = [
@@ -147,6 +150,54 @@ class InputLogicTest {
         assertEquals("helo", text)
         assertEquals("", composingText)
         assertFalse(composer.isComposingWord)
+    }
+
+    @Test fun hardwareStripStaysAvailableWhenTheToolbarIsShowing() {
+        val config = latinIME.resources.configuration
+        val previousKeyboard = config.keyboard
+        val previousHidden = config.hardKeyboardHidden
+        val prefs = latinIME.prefs()
+        val previousMode = prefs.getString(Settings.PREF_TOOLBAR_MODE, ToolbarMode.EXPANDABLE.name)
+        val previousSuggestions = prefs.getBoolean(Settings.PREF_SHOW_SUGGESTIONS, true)
+        val editorInfo = EditorInfo()
+        editorInfo.packageName = "helium314.keyboard.test"
+        editorInfo.inputType = InputType.TYPE_CLASS_TEXT
+        try {
+            config.keyboard = Configuration.KEYBOARD_QWERTY
+            config.hardKeyboardHidden = Configuration.HARDKEYBOARDHIDDEN_NO
+            loadHardwareStripSettings(editorInfo, ToolbarMode.TOOLBAR_KEYS, true)
+            assertTrue(Settings.getValues().mHasHardwareKeyboard)
+            assertFalse(Settings.getValues().mSuggestionsEnabled)
+            assertTrue(latinIME.hardwareCandidateBarWanted())
+
+            loadHardwareStripSettings(editorInfo, ToolbarMode.EXPANDABLE, false)
+            assertFalse(Settings.getValues().mSuggestionsEnabled)
+            assertTrue(latinIME.hardwareCandidateBarWanted())
+
+            loadHardwareStripSettings(editorInfo, ToolbarMode.HIDDEN, true)
+            assertFalse(latinIME.hardwareCandidateBarWanted())
+        } finally {
+            config.keyboard = previousKeyboard
+            config.hardKeyboardHidden = previousHidden
+            editorInfo.inputType = InputType.TYPE_CLASS_TEXT
+            prefs.edit()
+                .putString(Settings.PREF_TOOLBAR_MODE, previousMode)
+                .putBoolean(Settings.PREF_SHOW_SUGGESTIONS, previousSuggestions)
+                .commit()
+            Settings.getInstance().loadSettings(
+                latinIME, Locale.US, InputAttributes(editorInfo, false, editorInfo.packageName)
+            )
+        }
+    }
+
+    private fun loadHardwareStripSettings(editorInfo: EditorInfo, mode: ToolbarMode, showSuggestions: Boolean) {
+        latinIME.prefs().edit()
+            .putString(Settings.PREF_TOOLBAR_MODE, mode.name)
+            .putBoolean(Settings.PREF_SHOW_SUGGESTIONS, showSuggestions)
+            .commit()
+        Settings.getInstance().loadSettings(
+            latinIME, Locale.US, InputAttributes(editorInfo, false, editorInfo.packageName)
+        )
     }
 
     @Test fun backspaceDeletesASelectionTheCacheDoesNotKnowAbout() {

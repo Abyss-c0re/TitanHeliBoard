@@ -146,10 +146,14 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
         if (Settings.getValues().mIsLocked && KeyCode.isIsBlockedWhenLocked(primaryCode))
             return
         val mkv = keyboardSwitcher.mainKeyboardView
+        // Toolbar keys are pressed while the letter keys are hidden. The view can also be absent
+        // until the hardware strip is created. Coordinates outside the keyboard are already absolute.
+        val keyX = if (mkv == null) x else mkv.getKeyX(x)
+        val keyY = if (mkv == null) y else mkv.getKeyY(y)
 
         // checking if the character is a combining accent
-        val event = if (primaryCode in combiningRange) { // todo: should this be done later, maybe in inputLogic?
-            Event.createSoftwareDeadEvent(primaryCode, 0, metaState, mkv.getKeyX(x), mkv.getKeyY(y), null)
+        val event = if (primaryCode in combiningRange && mkv != null) { // todo: should this be done later, maybe in inputLogic?
+            Event.createSoftwareDeadEvent(primaryCode, 0, metaState, keyX, keyY, null)
         } else {
             // todo:
             //  setting meta shift should only be done for arrow and similar cursor movement keys
@@ -157,7 +161,7 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
 //            if (mkv.keyboard?.mId?.isAlphabetShiftedManually == true)
 //                Event.createSoftwareKeypressEvent(primaryCode, metaState or KeyEvent.META_SHIFT_ON, mkv.getKeyX(x), mkv.getKeyY(y), isKeyRepeat)
 //            else Event.createSoftwareKeypressEvent(primaryCode, metaState, mkv.getKeyX(x), mkv.getKeyY(y), isKeyRepeat)
-            Event.createSoftwareKeypressEvent(primaryCode, metaState, mkv.getKeyX(x), mkv.getKeyY(y), isKeyRepeat)
+            Event.createSoftwareKeypressEvent(primaryCode, metaState, keyX, keyY, isKeyRepeat)
         }
         latinIME.onEvent(event)
         metaAfterCodeInput(primaryCode)

@@ -234,16 +234,16 @@ public final class KeyboardSwitcher {
             @NonNull final SettingsValues settingsValues,
             @NonNull final KeyboardSwitchState toggleState,
             final boolean alphabetLayout) {
-        // Alphabet keys stay down while the hardware candidate bar is up. Symbol, number, and
-        // d-pad layouts are requested from the toolbar and stay visible.
-        final boolean hideAlphabet = alphabetLayout && mLatinIME.shouldHideHardwareLetterKeys();
+        // Alphabet keys stay down while the hardware strip is up, and while "only toolbar" is on.
+        // Symbol, number, emoji, and d-pad layouts are requested from the toolbar and stay visible.
+        final boolean hideLetterKeys = alphabetLayout
+                && (mLatinIME.shouldHideHardwareLetterKeys() || Settings.getInstance().readShowToolbarOnly());
         final boolean suppressed = isImeSuppressedByHardwareKeyboard(settingsValues, toggleState)
-                && !hideAlphabet;
+                && !hideLetterKeys;
         final int stripVisibility = mLatinIME.hasSuggestionStripView() ? View.VISIBLE : View.GONE;
-        final int keyVisibility = (suppressed || hideAlphabet) ? View.GONE : View.VISIBLE;
+        final int keyVisibility = (suppressed || hideLetterKeys) ? View.GONE : View.VISIBLE;
         final int frameVisibility = suppressed ? View.GONE : View.VISIBLE;
-        final int wrapperVisibility = (suppressed || hideAlphabet
-                || Settings.getInstance().readShowToolbarOnly()) ? View.GONE : View.VISIBLE;
+        final int wrapperVisibility = (suppressed || hideLetterKeys) ? View.GONE : View.VISIBLE;
         mStripContainer.setVisibility(stripVisibility);
         PointerTracker.switchTo(mKeyboardView);
         mKeyboardView.setVisibility(keyVisibility);

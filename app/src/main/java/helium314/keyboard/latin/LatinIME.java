@@ -724,13 +724,14 @@ public class LatinIME extends InputMethodService implements
     }
 
     /**
-     * Show the suggestion strip while a hardware keyboard hides the letter keys.
+     * Show the strip while a hardware keyboard hides the letter keys.
+     * Toolbar-keys mode turns suggestions off, and that strip is still the toolbar.
      * Must not call {@link #onEvaluateInputViewShown()}, {@link #onShowInputRequested},
      * or {@link #isImeSuppressedByHardwareKeyboard()}.
      */
     public boolean hardwareCandidateBarWanted() {
         final SettingsValues values = mSettings.getCurrent();
-        if (values == null || !values.mHasHardwareKeyboard || !values.mSuggestionsEnabled) {
+        if (values == null || !values.mHasHardwareKeyboard || values.mToolbarMode == ToolbarMode.HIDDEN) {
             return false;
         }
         final EditorInfo editorInfo = getCurrentInputEditorInfo();
@@ -1044,7 +1045,10 @@ public class LatinIME extends InputMethodService implements
         if (!mHandler.hasPendingResumeSuggestions()) {
             mHandler.cancelUpdateSuggestionStrip();
             setNeutralSuggestionStrip();
-            if (hasSuggestionStripView() && currentSettingsValues.mAutoShowToolbar && !tryShowClipboardSuggestion()) {
+            if (hasSuggestionStripView() && Settings.getInstance().readShowToolbarOnly()) {
+                // The letter keys stay down. Open the toolbar without the system virtual-keyboard setting.
+                mSuggestionStripView.setToolbarVisibility(true);
+            } else if (hasSuggestionStripView() && currentSettingsValues.mAutoShowToolbar && !tryShowClipboardSuggestion()) {
                 mSuggestionStripView.setToolbarVisibility(true);
             }
             // The hardware word is committed, so the soft-keyboard resume never runs.
@@ -1621,8 +1625,10 @@ public class LatinIME extends InputMethodService implements
                 || noSuggestionsFromDictionaries) {
             mSuggestionStripView.setSuggestions(suggestedWords,
                     mRichImm.getCurrentSubtype().isRtlSubtype());
-            // Auto hide the toolbar if dictionary suggestions are available
-            if (currentSettingsValues.mAutoHideToolbar && !noSuggestionsFromDictionaries) {
+            // Auto hide the toolbar if dictionary suggestions are available.
+            // "Only toolbar" asked for the buttons to stay, including while suggestions exist.
+            if (currentSettingsValues.mAutoHideToolbar && !noSuggestionsFromDictionaries
+                    && !Settings.getInstance().readShowToolbarOnly()) {
                 mSuggestionStripView.setToolbarVisibility(false);
             }
         }
@@ -1692,7 +1698,9 @@ public class LatinIME extends InputMethodService implements
                 ? currentSettings.mPunctuationSuggestions
                 : SuggestedWords.getEmptyInstance();
         setSuggestedWords(neutralSuggestions);
-        if (hasSuggestionStripView() && currentSettings.mAutoShowToolbar) {
+        if (hasSuggestionStripView() && Settings.getInstance().readShowToolbarOnly()) {
+            mSuggestionStripView.setToolbarVisibility(true);
+        } else if (hasSuggestionStripView() && currentSettings.mAutoShowToolbar) {
             final int codePointBeforeCursor = mInputLogic.mConnection.getCodePointBeforeCursor();
             if (mInputLogic.mConnection.hasSelection()
                     || codePointBeforeCursor == Constants.NOT_A_CODE
