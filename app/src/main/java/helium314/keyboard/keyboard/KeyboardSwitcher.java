@@ -392,6 +392,32 @@ public final class KeyboardSwitcher {
         mLatinIME.toggleToolbarFromPhysicalAlt();
     }
 
+    /** The suggestion strip, emoji, or clipboard is on screen. Toolbar buttons alone are not the panel. */
+    public boolean isHardwarePanelShown() {
+        if (isShowingEmojiPalettes() || isShowingClipboardHistory()) return true;
+        return mStripContainer != null && mStripContainer.isShown();
+    }
+
+    /** Remove the strip and every panel in it. Letter keys stay untouched until the caller hides or reloads. */
+    public void hideHardwareCandidatePanel() {
+        if (mStripContainer != null) mStripContainer.setVisibility(View.GONE);
+        if (mSuggestionStripView != null) mSuggestionStripView.setVisibility(View.GONE);
+        if (mEmojiPalettesView != null) {
+            mEmojiPalettesView.stopEmojiPalettes();
+            mEmojiPalettesView.setVisibility(View.GONE);
+        }
+        if (mEmojiTabStripView != null) mEmojiTabStripView.setVisibility(View.GONE);
+        if (mClipboardStripScrollView != null) mClipboardStripScrollView.setVisibility(View.GONE);
+        if (mClipboardHistoryView != null) {
+            mClipboardHistoryView.stopClipboardHistory();
+            mClipboardHistoryView.setVisibility(View.GONE);
+        }
+        if (mKeyboardView != null) mKeyboardView.setVisibility(View.GONE);
+        if (mKeyboardViewWrapper != null) mKeyboardViewWrapper.setVisibility(View.GONE);
+        if (mMainKeyboardFrame != null) mMainKeyboardFrame.setVisibility(View.GONE);
+        clearHardwareStripBottomInset();
+    }
+
     public void updateShiftState(final int autoCapsFlags, @Nullable final RecapitalizeMode recapitalizeMode) {
         if (SwitchActions.DEBUG_ACTION) {
             Log.d(TAG, "updateShiftState: " + " autoCapsFlags=" + CapsModeUtils.flagsToString(autoCapsFlags) + " recapitalizeMode=" + recapitalizeMode);

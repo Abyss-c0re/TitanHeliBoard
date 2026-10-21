@@ -6,9 +6,11 @@ import android.content.SharedPreferences
 import androidx.test.core.app.ApplicationProvider
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import helium314.keyboard.latin.utils.ToolbarMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 
 @RunWith(RobolectricTestRunner::class)
 class PhysicalKeyboardAltTest {
@@ -53,41 +55,26 @@ class PhysicalKeyboardAltTest {
         assertEquals(PhysicalKeyboardAlt.EMOJI, PhysicalKeyboardAlt.normalize(PhysicalKeyboardAlt.EMOJI))
     }
 
-    @Test fun altShowsAHiddenToolbarAndHidesAShownOne() {
-        assertEquals(true, PhysicalKeyboardAlt.showToolbarOnAlt(
-            toolbarModeHidden = true,
-            inputShown = true,
-            hasStrip = true,
-            toolbarRowShown = false,
-            emojiOrClipboard = false,
-        ))
-        assertEquals(true, PhysicalKeyboardAlt.showToolbarOnAlt(
-            toolbarModeHidden = false,
-            inputShown = true,
-            hasStrip = true,
-            toolbarRowShown = false,
-            emojiOrClipboard = false,
-        ))
-        assertEquals(false, PhysicalKeyboardAlt.showToolbarOnAlt(
-            toolbarModeHidden = false,
-            inputShown = true,
-            hasStrip = true,
-            toolbarRowShown = true,
-            emojiOrClipboard = false,
-        ))
-        assertEquals(true, PhysicalKeyboardAlt.showToolbarOnAlt(
-            toolbarModeHidden = false,
-            inputShown = false,
-            hasStrip = true,
-            toolbarRowShown = true,
-            emojiOrClipboard = false,
-        ))
-        assertEquals(true, PhysicalKeyboardAlt.showToolbarOnAlt(
-            toolbarModeHidden = false,
-            inputShown = true,
-            hasStrip = true,
-            toolbarRowShown = true,
-            emojiOrClipboard = true,
-        ))
+    @Test fun altHidesThePanelBySettingToolbarHidden() {
+        assertEquals(ToolbarMode.HIDDEN.name, PhysicalKeyboardAlt.toggledToolbarMode(ToolbarMode.EXPANDABLE.name, null))
+        assertEquals(ToolbarMode.EXPANDABLE.name, PhysicalKeyboardAlt.restoreToRemember(ToolbarMode.EXPANDABLE.name))
+        assertEquals(ToolbarMode.TOOLBAR_KEYS.name, PhysicalKeyboardAlt.restoreToRemember(ToolbarMode.TOOLBAR_KEYS.name))
+        assertNull(PhysicalKeyboardAlt.restoreToRemember(ToolbarMode.HIDDEN.name))
+    }
+
+    @Test fun altShowsThePanelByRestoringThePreviousMode() {
+        assertEquals(
+            ToolbarMode.TOOLBAR_KEYS.name,
+            PhysicalKeyboardAlt.toggledToolbarMode(ToolbarMode.HIDDEN.name, ToolbarMode.TOOLBAR_KEYS.name),
+        )
+        assertEquals(
+            ToolbarMode.EXPANDABLE.name,
+            PhysicalKeyboardAlt.toggledToolbarMode(ToolbarMode.HIDDEN.name, null),
+        )
+        assertEquals(
+            ToolbarMode.EXPANDABLE.name,
+            PhysicalKeyboardAlt.toggledToolbarMode(ToolbarMode.HIDDEN.name, ToolbarMode.HIDDEN.name),
+        )
+        assertEquals(ToolbarMode.EXPANDABLE.name, PhysicalKeyboardAlt.rememberedToolbarMode("not-a-mode"))
     }
 }

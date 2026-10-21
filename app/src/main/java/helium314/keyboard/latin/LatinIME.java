@@ -12,6 +12,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Color;
@@ -752,38 +753,67 @@ public class LatinIME extends InputMethodService implements
     }
 
     /**
-     * Show the toolbar when it is hidden, and hide it when it is showing.
-     * A toolbar mode of Hidden is not a toolbar, so Alt leaves that mode and shows the keys.
+     * Hide the whole hardware panel, or show it again.
+     * Folding the toolbar buttons used to leave the suggestion strip on screen.
      */
     public void toggleToolbarFromPhysicalAlt() {
         final SettingsValues values = mSettings.getCurrent();
         if (values == null || values.mIsLocked) return;
-        final boolean wasHidden = values.mToolbarMode == ToolbarMode.HIDDEN;
-        final boolean emoji = mKeyboardSwitcher.isShowingEmojiPalettes();
-        final boolean clipboard = mKeyboardSwitcher.isShowingClipboardHistory();
-        final boolean showToolbar = PhysicalKeyboardAlt.showToolbarOnAlt(
-                wasHidden,
-                isInputViewShown(),
-                hasSuggestionStripView(),
-                hasSuggestionStripView() && mSuggestionStripView.isToolbarShown(),
-                emoji || clipboard);
-        if (wasHidden) {
-            KtxKt.prefs(this).edit().putString(Settings.PREF_TOOLBAR_MODE, ToolbarMode.EXPANDABLE.name()).commit();
-            mKeyboardSwitcher.updateKeyboardTheme(mDisplayContext);
-        }
-        if (emoji) {
+        final boolean panelShown = mKeyboardSwitcher.isHardwarePanelShown();
+        if (panelShown && mKeyboardSwitcher.isShowingEmojiPalettes()) {
+            // Closing emoji while the strip is the reason the window is up stays on the strip.
+            // Hide that strip afterwards instead of leaving it behind the buttons.
             mKeyboardSwitcher.onToggleKeyboard(KeyboardSwitcher.KeyboardSwitchState.EMOJI);
-        } else if (clipboard) {
+        } else if (panelShown && mKeyboardSwitcher.isShowingClipboardHistory()) {
             mKeyboardSwitcher.onToggleKeyboard(KeyboardSwitcher.KeyboardSwitchState.CLIPBOARD);
         }
-        if (!isInputViewShown() && hardwareCandidateBarWanted()) {
-            // Do not use startShowingInputView. That forces the letter keys on for one pass.
-            showWindow(true);
-        } else if (wasHidden && mKeyboardSwitcher.getMainKeyboardView() != null) {
-            mKeyboardSwitcher.reloadMainKeyboard();
+        final SharedPreferences prefs = KtxKt.prefs(this);
+        final String current = prefs.getString(Settings.PREF_TOOLBAR_MODE, ToolbarMode.EXPANDABLE.name());
+        final String saved = prefs.getString(Settings.PREF_PHYSICAL_KEYBOARD_ALT_TOOLBAR_RESTORE, null);
+        final SharedPreferences.Editor editor = prefs.edit();
+        if (panelShown) {
+            final String remember = PhysicalKeyboardAlt.restoreToRemember(current);
+            if (remember != null) {
+                editor.putString(Settings.PREF_PHYSICAL_KEYBOARD_ALT_TOOLBAR_RESTORE, remember);
+            }
+            editor.putString(Settings.PREF_TOOLBAR_MODE, ToolbarMode.HIDDEN.name());
+        } else if (ToolbarMode.HIDDEN.name().equals(current)) {
+            editor.putString(Settings.PREF_TOOLBAR_MODE, PhysicalKeyboardAlt.toggledToolbarMode(current, saved));
         }
-        if (hasSuggestionStripView()) {
-            mSuggestionStripView.setToolbarVisibility(showToolbar);
+        editor.commit();
+        mKeyboardSwitcher.updateKeyboardTheme(mDisplayContext);
+        if (!panelShown) {
+            if (!isInputViewShown()) {
+                // Do not use startShowingInputView. That forces the letter keys on for one pass.
+                showWindow(true);
+            } else {
+                // The input frame was set gone while the decor was still up. Show that frame again.
+                updateInputViewShown();
+            }
+            final View strip = mKeyboardSwitcher.getStripContainer();
+            if (mKeyboardSwitcher.getMainKeyboardView() != null && (strip == null || !strip.isShown())) {
+                mKeyboardSwitcher.reloadMainKeyboard();
+            }
+            return;
+        }
+        // Folding toolbar buttons leaves this strip on screen. Hide the strip itself.
+        mHardwareCandidateBar = false;
+        final View letters = mKeyboardSwitcher.getMainKeyboardView();
+        if (letters != null && letters.isShown()) {
+            // Letter keys were requested. Remove the strip and leave those keys.
+            mKeyboardSwitcher.reloadMainKeyboard();
+            return;
+        }
+        mKeyboardSwitcher.hideHardwareCandidatePanel();
+        // Toolbar mode is Hidden, so onEvaluate is false and this drops the whole input frame.
+        updateInputViewShown();
+        if (isInputViewShown()) {
+            // hideWindow() alone leaves the show request set. The decor is then put back,
+            // and the strip background is still drawn in that window.
+            hideWindow();
+            requestHideSelf(0);
+        } else if (mInputView != null) {
+            mInputView.requestLayout();
         }
     }
 
@@ -1305,7 +1335,10 @@ public class LatinIME extends InputMethodService implements
         }
         final int inputHeight = mInputView.getHeight();
         // The wrapper's last measured height is the full keyboard. Ignore it while only the strip is up.
-        if (isHardwareCandidateBar() && !visibleKeyboardView.isShown()) {
+        // Hidden leaves no strip to sit above the gesture bar. A stale candidate-bar flag must not keep that gap.
+        final SettingsValues insetValues = mSettings.getCurrent();
+        if (isHardwareCandidateBar() && !visibleKeyboardView.isShown()
+                && insetValues != null && insetValues.mToolbarMode != ToolbarMode.HIDDEN) {
             final View strip = mKeyboardSwitcher.getStripContainer();
             int stripHeight = strip == null ? 0 : strip.getHeight();
             if (stripHeight <= 0) {
@@ -1323,6 +1356,17 @@ public class LatinIME extends InputMethodService implements
             outInsets.touchableInsets = mKeyboardSwitcher.isShowingPopupKeysPanel()
                     ? InputMethodService.Insets.TOUCHABLE_INSETS_FRAME
                     : InputMethodService.Insets.TOUCHABLE_INSETS_VISIBLE;
+            mInsetsUpdater.setInsets(outInsets);
+            return;
+        }
+        if (insetValues != null && insetValues.mToolbarMode == ToolbarMode.HIDDEN
+                && !visibleKeyboardView.isShown()) {
+            // The outline is the visible panel. Leave it no height, or an empty bar stays up
+            // after the toolbar buttons are gone.
+            outInsets.contentTopInsets = inputHeight;
+            outInsets.visibleTopInsets = inputHeight;
+            outInsets.touchableInsets = InputMethodService.Insets.TOUCHABLE_INSETS_REGION;
+            outInsets.touchableRegion.setEmpty();
             mInsetsUpdater.setInsets(outInsets);
             return;
         }
@@ -1407,6 +1451,12 @@ public class LatinIME extends InputMethodService implements
         // even after onEvaluate starts returning true for the candidate bar.
         if (hardwareCandidateBarWanted()) {
             return true;
+        }
+        final SettingsValues showValues = mSettings.getCurrent();
+        // Hidden keeps the panel down. The hardware-keyboard path would show the decor again,
+        // and the strip background would still be on screen after the buttons were folded.
+        if (showValues != null && showValues.mToolbarMode == ToolbarMode.HIDDEN) {
+            return super.onShowInputRequested(flags, configChange);
         }
         if (isImeSuppressedByHardwareKeyboard()) {
             return true;

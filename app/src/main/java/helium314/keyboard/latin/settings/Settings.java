@@ -136,6 +136,8 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
     public static final String PREF_ENABLE_EMOJI_ALT_PHYSICAL_KEY = "enable_emoji_alt_physical_key";
     /** Lone Alt on a hardware keyboard: none, emoji, or toolbar. Replaces the emoji on/off switch. */
     public static final String PREF_PHYSICAL_KEYBOARD_ALT = "physical_keyboard_alt";
+    /** Toolbar mode to put back when Alt shows the panel again. Not read by SettingsValues. */
+    public static final String PREF_PHYSICAL_KEYBOARD_ALT_TOOLBAR_RESTORE = "physical_keyboard_alt_toolbar_restore";
     public static final String PREF_ENABLE_HARDWARE_KEYBOARD = "enable_hardware_keyboard";
     // Titan hardware layouts. Read live by HwLayoutStore, so they must not reload SettingsValues mid-key.
     public static final String PREF_HW_LAYOUT_ENABLED = "hw_layout_enabled";
@@ -238,7 +240,7 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
                  PREF_DONT_SHOW_MISSING_DICTIONARY_DIALOG, PREF_SELECTED_SUBTYPE,
                  PREF_HW_LAYOUT_ENABLED, PREF_HW_LAYOUT_ROTATION, PREF_HW_LAYOUT_CURRENT,
                  PREF_HW_LAYOUT_ALT_SHIFT, PREF_HW_LAYOUT_SPACE_HOLD, PREF_HW_LAYOUT_TOAST,
-                 PREF_HW_LAYOUT_HOLD -> false;
+                 PREF_HW_LAYOUT_HOLD, PREF_PHYSICAL_KEYBOARD_ALT_TOOLBAR_RESTORE -> false;
             default -> !key.startsWith(PREF_SAVED_APP_SUBTYPE_PREFIX) && !key.startsWith("floating_pos");
         };
     }

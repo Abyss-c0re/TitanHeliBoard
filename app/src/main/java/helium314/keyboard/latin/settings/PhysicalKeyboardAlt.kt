@@ -2,6 +2,7 @@
 package helium314.keyboard.latin.settings
 
 import android.content.SharedPreferences
+import helium314.keyboard.latin.utils.ToolbarMode
 
 /**
  * What a lone Alt press does on a hardware keyboard.
@@ -45,19 +46,35 @@ object PhysicalKeyboardAlt {
     }
 
     /**
-     * Alt shows the toolbar when it is hidden, and hides it when it is showing.
-     * Emoji, a hidden toolbar mode, or a missing strip count as hidden.
+     * The next toolbar mode when Alt hides or shows the whole panel.
+     * Hiding stores [current] separately and sets Hidden. Showing restores that mode.
      */
     @JvmStatic
-    fun showToolbarOnAlt(
-        toolbarModeHidden: Boolean,
-        inputShown: Boolean,
-        hasStrip: Boolean,
-        toolbarRowShown: Boolean,
-        emojiOrClipboard: Boolean,
-    ): Boolean {
-        if (toolbarModeHidden || emojiOrClipboard || !inputShown || !hasStrip) return true
-        return !toolbarRowShown
+    fun toggledToolbarMode(current: String?, savedRestore: String?): String {
+        if (current == ToolbarMode.HIDDEN.name) {
+            return rememberedToolbarMode(savedRestore)
+        }
+        return ToolbarMode.HIDDEN.name
+    }
+
+    /** Mode to put back when the panel was hidden. Hidden is not a mode to restore. */
+    @JvmStatic
+    fun rememberedToolbarMode(savedRestore: String?): String {
+        if (savedRestore == null || savedRestore == ToolbarMode.HIDDEN.name) {
+            return ToolbarMode.EXPANDABLE.name
+        }
+        return try {
+            ToolbarMode.valueOf(savedRestore).name
+        } catch (_: IllegalArgumentException) {
+            ToolbarMode.EXPANDABLE.name
+        }
+    }
+
+    /** Remember the mode Alt is about to replace. Hidden has nothing new to remember. */
+    @JvmStatic
+    fun restoreToRemember(current: String?): String? {
+        if (current == null || current == ToolbarMode.HIDDEN.name) return null
+        return rememberedToolbarMode(current)
     }
 
     @JvmStatic

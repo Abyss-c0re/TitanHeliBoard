@@ -607,7 +607,7 @@ language, hence "No language". -->
     <string name="prefs_enable_emoji_alt_physical_key_summary">Physical Alt key shows the emoji palette</string>
     <!-- What a lone Alt press does on a hardware keyboard -->
     <string name="physical_keyboard_alt">Physical keyboard Alt</string>
-    <string name="physical_keyboard_alt_summary">Nothing leaves Alt alone. Emoji opens the emoji palette. Toggle the toolbar sets the toolbar hidden or not hidden.</string>
+    <string name="physical_keyboard_alt_summary">Nothing leaves Alt alone. Emoji opens the emoji palette. Toggle the toolbar hides the whole panel, or shows it again.</string>
     <string name="physical_keyboard_alt_none">Nothing</string>
     <string name="physical_keyboard_alt_emoji">Emojis</string>
     <string name="physical_keyboard_alt_toolbar">Toggle the toolbar</string>
