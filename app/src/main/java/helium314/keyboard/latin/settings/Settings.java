@@ -134,6 +134,8 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
     public static final String PREF_KEYPRESS_SOUND_VOLUME = "keypress_sound_volume";
     public static final String PREF_KEY_LONGPRESS_TIMEOUT = "key_longpress_timeout";
     public static final String PREF_ENABLE_EMOJI_ALT_PHYSICAL_KEY = "enable_emoji_alt_physical_key";
+    /** Lone Alt on a hardware keyboard: none, emoji, or toolbar. Replaces the emoji on/off switch. */
+    public static final String PREF_PHYSICAL_KEYBOARD_ALT = "physical_keyboard_alt";
     public static final String PREF_ENABLE_HARDWARE_KEYBOARD = "enable_hardware_keyboard";
     // Titan hardware layouts. Read live by HwLayoutStore, so they must not reload SettingsValues mid-key.
     public static final String PREF_HW_LAYOUT_ENABLED = "hw_layout_enabled";
@@ -273,6 +275,7 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
 
     @Override
     public void onSharedPreferenceChanged(final SharedPreferences prefs, final String key) {
+        if (PhysicalKeyboardAlt.migrating) return;
         if (key != null && !reloadOnChanged(key))
             return;
         mSettingsValuesLock.lock();
@@ -309,6 +312,7 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
         try {
             final SharedPreferences prefs = mPrefs;
             Log.i(TAG, "loadSettings");
+            PhysicalKeyboardAlt.migrate(prefs);
             mSettingsValues = RunInLocaleKt.runInLocale(context, locale,
                     ctx -> new SettingsValues(ctx, prefs, ctx.getResources(), inputAttributes));
         } finally {

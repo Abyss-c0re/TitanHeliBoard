@@ -122,8 +122,10 @@ object Defaults {
     const val PREF_VIBRATION_DURATION_SETTINGS = -1
     const val PREF_KEYPRESS_SOUND_VOLUME = -0.01f
     const val PREF_KEY_LONGPRESS_TIMEOUT = 300
-    // Off until chosen. Alt Left opens emoji. Alt Right is Sym and is not in the hotkey list.
+    // Off until chosen. Kept so an old install can be copied into PREF_PHYSICAL_KEYBOARD_ALT.
     const val PREF_ENABLE_EMOJI_ALT_PHYSICAL_KEY = false
+    // Lone Alt does nothing until chosen. Emoji and the toolbar are the other choices.
+    const val PREF_PHYSICAL_KEYBOARD_ALT = PhysicalKeyboardAlt.NONE
     // supporting hardware keyboard still has a bunch of issues
     // crash https://github.com/HeliBorg/HeliBoard/issues/2047 (possibly fixed with b7cb95fc9da213c99d82e8833fb5f950f39d232e)
     // different crash https://github.com/HeliBorg/HeliBoard/issues/2001

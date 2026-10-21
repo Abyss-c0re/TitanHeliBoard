@@ -72,7 +72,7 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     }
 
     override fun onKeyUp(keyCode: Int, keyEvent: KeyEvent): Boolean {
-        // Alt Left opens emoji when that preference is on. Sym is Alt Right and is not a hotkey.
+        // Lone Alt follows the physical-keyboard Alt choice. Sym is Alt Right and is not a hotkey.
         emojiAltPhysicalKeyDetector.onKeyUp(keyEvent)
         if (hwLayouts.onKeyUp(keyCode, keyEvent))
             return true

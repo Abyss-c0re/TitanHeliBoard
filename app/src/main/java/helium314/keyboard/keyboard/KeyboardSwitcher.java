@@ -387,6 +387,11 @@ public final class KeyboardSwitcher {
         }
     }
 
+    /** Lone Alt, when that physical-keyboard choice is the toolbar. */
+    public void toggleToolbarFromPhysicalAlt() {
+        mLatinIME.toggleToolbarFromPhysicalAlt();
+    }
+
     public void updateShiftState(final int autoCapsFlags, @Nullable final RecapitalizeMode recapitalizeMode) {
         if (SwitchActions.DEBUG_ACTION) {
             Log.d(TAG, "updateShiftState: " + " autoCapsFlags=" + CapsModeUtils.flagsToString(autoCapsFlags) + " recapitalizeMode=" + recapitalizeMode);

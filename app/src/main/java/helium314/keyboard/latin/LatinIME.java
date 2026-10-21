@@ -65,6 +65,7 @@ import helium314.keyboard.latin.common.ViewOutlineProviderUtilsKt;
 import helium314.keyboard.latin.define.DebugFlags;
 import helium314.keyboard.latin.inputlogic.InputLogic;
 import helium314.keyboard.latin.personalization.PersonalizationHelper;
+import helium314.keyboard.latin.settings.PhysicalKeyboardAlt;
 import helium314.keyboard.latin.settings.Settings;
 import helium314.keyboard.latin.settings.SettingsSubtype;
 import helium314.keyboard.latin.settings.SettingsValues;
@@ -748,6 +749,42 @@ public class LatinIME extends InputMethodService implements
      */
     public boolean isSoftKeyboardShown() {
         return onEvaluateInputViewShown() && !mHardwareCandidateBar;
+    }
+
+    /**
+     * Show the toolbar when it is hidden, and hide it when it is showing.
+     * A toolbar mode of Hidden is not a toolbar, so Alt leaves that mode and shows the keys.
+     */
+    public void toggleToolbarFromPhysicalAlt() {
+        final SettingsValues values = mSettings.getCurrent();
+        if (values == null || values.mIsLocked) return;
+        final boolean wasHidden = values.mToolbarMode == ToolbarMode.HIDDEN;
+        final boolean emoji = mKeyboardSwitcher.isShowingEmojiPalettes();
+        final boolean clipboard = mKeyboardSwitcher.isShowingClipboardHistory();
+        final boolean showToolbar = PhysicalKeyboardAlt.showToolbarOnAlt(
+                wasHidden,
+                isInputViewShown(),
+                hasSuggestionStripView(),
+                hasSuggestionStripView() && mSuggestionStripView.isToolbarShown(),
+                emoji || clipboard);
+        if (wasHidden) {
+            KtxKt.prefs(this).edit().putString(Settings.PREF_TOOLBAR_MODE, ToolbarMode.EXPANDABLE.name()).commit();
+            mKeyboardSwitcher.updateKeyboardTheme(mDisplayContext);
+        }
+        if (emoji) {
+            mKeyboardSwitcher.onToggleKeyboard(KeyboardSwitcher.KeyboardSwitchState.EMOJI);
+        } else if (clipboard) {
+            mKeyboardSwitcher.onToggleKeyboard(KeyboardSwitcher.KeyboardSwitchState.CLIPBOARD);
+        }
+        if (!isInputViewShown() && hardwareCandidateBarWanted()) {
+            // Do not use startShowingInputView. That forces the letter keys on for one pass.
+            showWindow(true);
+        } else if (wasHidden && mKeyboardSwitcher.getMainKeyboardView() != null) {
+            mKeyboardSwitcher.reloadMainKeyboard();
+        }
+        if (hasSuggestionStripView()) {
+            mSuggestionStripView.setToolbarVisibility(showToolbar);
+        }
     }
 
     /** Re-read the flag so Alt-emoji cannot leave the letter keys up afterwards. */

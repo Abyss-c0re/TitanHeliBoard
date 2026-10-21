@@ -14,7 +14,9 @@ import android.view.KeyEvent;
 import androidx.annotation.NonNull;
 
 import helium314.keyboard.keyboard.KeyboardSwitcher;
+import helium314.keyboard.latin.settings.PhysicalKeyboardAlt;
 import helium314.keyboard.latin.settings.Settings;
+import helium314.keyboard.latin.settings.SettingsValues;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -117,8 +119,16 @@ public final class EmojiAltPhysicalKeyDetector {
         final EmojiHotKeys emojiHotKeys = new EmojiHotKeys("emoji", emojiSwitchSet) {
             @Override
             protected void action() {
+                final SettingsValues values = Settings.getValues();
+                if (values == null) return;
                 final KeyboardSwitcher switcher = KeyboardSwitcher.getInstance();
-                switcher.onToggleKeyboard(KeyboardSwitcher.KeyboardSwitchState.EMOJI);
+                if (PhysicalKeyboardAlt.TOOLBAR.equals(values.mPhysicalKeyboardAlt)) {
+                    switcher.toggleToolbarFromPhysicalAlt();
+                    return;
+                }
+                if (PhysicalKeyboardAlt.EMOJI.equals(values.mPhysicalKeyboardAlt)) {
+                    switcher.onToggleKeyboard(KeyboardSwitcher.KeyboardSwitchState.EMOJI);
+                }
             }
         };
         mHotKeysList.add(emojiHotKeys);
@@ -160,8 +170,11 @@ public final class EmojiAltPhysicalKeyDetector {
     }
 
     private static boolean shouldProcessEvent(@NonNull final KeyEvent keyEvent) {
-        if (!Settings.getValues().mEnableEmojiAltPhysicalKey) {
-            // The feature is disabled.
+        final SettingsValues values = Settings.getValues();
+        if (values == null) return false;
+        final String action = values.mPhysicalKeyboardAlt;
+        // Nothing leaves Alt to the layout. Emoji and the toolbar both use this Alt chord.
+        if (!PhysicalKeyboardAlt.EMOJI.equals(action) && !PhysicalKeyboardAlt.TOOLBAR.equals(action)) {
             if (DEBUG) {
                 Log.d(TAG, "shouldProcessEvent(): Disabled");
             }

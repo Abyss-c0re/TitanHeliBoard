@@ -35,6 +35,7 @@ import helium314.keyboard.latin.InputAttributes
 import helium314.keyboard.latin.R
 import helium314.keyboard.latin.common.FileUtils
 import helium314.keyboard.latin.define.DebugFlags
+import helium314.keyboard.latin.settings.PhysicalKeyboardAlt
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.utils.BackButton
 import helium314.keyboard.latin.utils.DeviceProtectedUtils
@@ -160,6 +161,8 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
 
     override fun onStart() {
         super.onStart()
+        // Before the listener, so the old emoji switch becomes the Alt choice without a redraw loop.
+        PhysicalKeyboardAlt.migrate(prefs)
         prefs.registerOnSharedPreferenceChangeListener(this)
     }
 

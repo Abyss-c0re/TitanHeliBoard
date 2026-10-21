@@ -25,6 +25,7 @@ import helium314.keyboard.latin.SystemBroadcastReceiver
 import helium314.keyboard.latin.common.splitOnWhitespace
 import helium314.keyboard.latin.settings.DebugSettings
 import helium314.keyboard.latin.settings.Defaults
+import helium314.keyboard.latin.settings.PhysicalKeyboardAlt
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.utils.checkTimestampFormat
 import helium314.keyboard.latin.utils.prefs
@@ -73,7 +74,7 @@ fun AdvancedSettingsScreen(
         Settings.PREF_DELETE_SWIPE,
         Settings.PREF_SPACE_TO_CHANGE_LANG,
         Settings.PREFS_LONG_PRESS_SYMBOLS_FOR_NUMPAD,
-        Settings.PREF_ENABLE_EMOJI_ALT_PHYSICAL_KEY,
+        Settings.PREF_PHYSICAL_KEYBOARD_ALT,
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) Settings.PREF_SHOW_SETUP_WIZARD_ICON else null,
         Settings.PREF_ABC_AFTER_SYMBOL_SPACE,
         Settings.PREF_ABC_AFTER_NUMPAD_SPACE,
@@ -174,10 +175,20 @@ fun createAdvancedSettings(context: Context) = listOf(
     Setting(context, Settings.PREFS_LONG_PRESS_SYMBOLS_FOR_NUMPAD, R.string.prefs_long_press_symbol_for_numpad) {
         SwitchPreference(it, Defaults.PREFS_LONG_PRESS_SYMBOLS_FOR_NUMPAD)
     },
-    Setting(context, Settings.PREF_ENABLE_EMOJI_ALT_PHYSICAL_KEY, R.string.prefs_enable_emoji_alt_physical_key,
-        R.string.prefs_enable_emoji_alt_physical_key_summary)
+    Setting(context, Settings.PREF_PHYSICAL_KEYBOARD_ALT, R.string.physical_keyboard_alt,
+        R.string.physical_keyboard_alt_summary)
     {
-        SwitchPreference(it, Defaults.PREF_ENABLE_EMOJI_ALT_PHYSICAL_KEY)
+        val items = listOf(
+            stringResource(R.string.physical_keyboard_alt_none) to PhysicalKeyboardAlt.NONE,
+            stringResource(R.string.physical_keyboard_alt_emoji) to PhysicalKeyboardAlt.EMOJI,
+            stringResource(R.string.physical_keyboard_alt_toolbar) to PhysicalKeyboardAlt.TOOLBAR,
+        )
+        ListPreference(
+            it,
+            items,
+            Defaults.PREF_PHYSICAL_KEYBOARD_ALT,
+            description = stringResource(R.string.physical_keyboard_alt_summary),
+        )
     },
     Setting(context, Settings.PREF_SHOW_SETUP_WIZARD_ICON, R.string.show_setup_wizard_icon, R.string.show_setup_wizard_icon_summary) {
         val ctx = LocalContext.current

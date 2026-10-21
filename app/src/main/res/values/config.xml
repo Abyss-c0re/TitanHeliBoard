@@ -91,7 +91,7 @@
     </string-array>
 
     <!-- Empty on purpose. Alt Right is Sym on the Titan keyboard and must not open the
-         on-screen symbols keyboard. Alt Left still opens emoji when that preference is on. -->
+         on-screen symbols keyboard. Alt Left follows the physical keyboard Alt preference. -->
     <string-array name="keyboard_switcher_symbols_shifted" translatable="false">
     </string-array>
 </resources>
