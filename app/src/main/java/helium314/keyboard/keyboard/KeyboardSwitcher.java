@@ -496,6 +496,18 @@ public final class KeyboardSwitcher {
         return isShowingKeyboardId(KeyboardElement.SYMBOLS, KeyboardElement.SYMBOLS_SHIFTED);
     }
 
+    /**
+     * The symbols layout is the current keyboard. Unlike {@link #isShowingSymbolsKeyboard()},
+     * this is true before the window has attached, which is when a hidden toolbar used to
+     * throw the page away.
+     */
+    public boolean hasSymbolsKeyboard() {
+        if (mKeyboardView == null) return false;
+        final Keyboard keyboard = mKeyboardView.getKeyboard();
+        if (keyboard == null) return false;
+        return isSymbolsElement(keyboard.mId.getElement());
+    }
+
     /** Show the existing symbols layout. The symbols key on that layout opens more symbols. */
     public void showSymbolsKeyboard() {
         if (mKeyboardView == null || mState == null) return;
@@ -527,7 +539,7 @@ public final class KeyboardSwitcher {
         } finally {
             mLatinIME.setOpeningHardwareSymbols(false);
         }
-        if (!isShowingSymbolsKeyboard()) {
+        if (!hasSymbolsKeyboard()) {
             // The page did not attach. Do not leave an empty frame from the opening flag.
             mLatinIME.updateInputViewShown();
         }

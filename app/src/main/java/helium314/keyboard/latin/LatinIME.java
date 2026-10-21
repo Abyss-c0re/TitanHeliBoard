@@ -1502,9 +1502,9 @@ public class LatinIME extends InputMethodService implements
         // Treat the opening gap like the strip so a Hidden toolbar does not start a composing span.
         mHardwareCandidateBar = mOpeningHardwareSymbols || hardwareCandidateBarWanted();
         // The symbols keyboard is a real set of keys. Keep its frame up after a Sym press
-        // even when the suggestion strip is hidden. isShown() is false until this frame is visible,
-        // so the opening flag covers that gap.
-        if (mOpeningHardwareSymbols || mKeyboardSwitcher.isShowingSymbolsKeyboard()) return true;
+        // even when the toolbar is hidden. isShown() is false until the window attaches,
+        // and that used to drop this page as soon as the opening flag cleared.
+        if (mOpeningHardwareSymbols || mKeyboardSwitcher.hasSymbolsKeyboard()) return true;
         return mHardwareCandidateBar;
     }
 

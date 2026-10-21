@@ -147,12 +147,34 @@ class HwLayoutEngineTest {
         )
     }
 
-    @Test fun `sym does not open symbols unless a text field requested input`() {
+    @Test fun `a short sym press opens symbols while the window is hidden`() {
         val (prefs, engine) = rig()
         prefs.symOpensSymbols = true
-        engine.noteField(text("com.example.game", forced = false))
+        engine.noteField(text("com.example.notes", forced = false))
+        assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 900), false))
+        assertEquals(HwKeyDecision.Consume, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false))
+        assertEquals(HwKeyDecision.Symbols, engine.onKeyUp(up(KeyEvent.KEYCODE_ALT_RIGHT, time = 1100)))
+    }
+
+    @Test fun `sym stays raw while the window is hidden when the switch is off`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = false
+        engine.noteField(text("com.example.notes", forced = false))
         assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false))
         assertEquals(HwKeyDecision.Pass, engine.onKeyUp(up(KeyEvent.KEYCODE_ALT_RIGHT, time = 1100)))
+        assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1200), false))
+    }
+
+    @Test fun `sym with another key types the symbol while the window is hidden`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = true
+        engine.noteField(text("com.example.notes", forced = false))
+        assertEquals(HwKeyDecision.Consume, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false))
+        assertEquals(
+            HwKeyDecision.Type(':'.code, false),
+            engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1100, meta = KeyEvent.META_ALT_RIGHT_ON), false),
+        )
+        assertEquals(HwKeyDecision.Pass, engine.onKeyUp(up(KeyEvent.KEYCODE_ALT_RIGHT, time = 1200)))
     }
 
     @Test fun `a sym release at the long press time does not open the symbols keyboard`() {

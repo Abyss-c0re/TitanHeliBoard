@@ -96,14 +96,20 @@ internal class HwLayoutEngine(
             return HwKeyDecision.Ignore
         }
         val current = field
-        if (current == null || !current.inputForced || current.inputType == InputType.TYPE_NULL) {
+        // No editor, or a field that does not take text: leave every key raw.
+        if (current == null || current.inputType == InputType.TYPE_NULL) {
             symTapArmed = false
             return HwKeyDecision.Pass
         }
-
         val code = event.keyCode
         val time = event.eventTime
         val repeat = event.repeatCount
+        // Hiding the toolbar clears the show request. The text field is still focused.
+        // Sym still opens the symbols keyboard. Other keys stay raw until Sym is held.
+        if (!current.inputForced && !symWhileWindowHidden(code)) {
+            symTapArmed = false
+            return HwKeyDecision.Pass
+        }
         if (!isAltRight(code)) symTapArmed = false
         if (isShift(code)) return onShiftDown(event, time, repeat)
         if (isAltLeft(code)) return onAltLeftDown(event, repeat)
@@ -123,7 +129,8 @@ internal class HwLayoutEngine(
             return HwKeyDecision.Pass
         }
         val time = event.eventTime
-        val openSymbols = current.inputForced && current.inputType != InputType.TYPE_NULL
+        // The window may already be hidden. A text field is enough for this tap.
+        val openSymbols = current.inputType != InputType.TYPE_NULL
         return when {
             isShift(event.keyCode) -> {
                 onShiftUp(time)
@@ -193,6 +200,15 @@ internal class HwLayoutEngine(
             }
         }
         return HwKeyDecision.Pass
+    }
+
+    /**
+     * Toolbar hidden means the IME window was dismissed, not that this stopped being a text field.
+     * A Sym chord still has to type the printed symbol after that window is gone.
+     */
+    private fun symWhileWindowHidden(code: Int): Boolean {
+        if (!prefs.symOpensSymbols) return false
+        return isAltRight(code) || symHeld
     }
 
     /**
