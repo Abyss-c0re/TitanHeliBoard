@@ -1444,7 +1444,7 @@ public final class InputLogic {
             final int selStart = mConnection.getExpectedSelectionStart();
             final int selEnd = mConnection.getExpectedSelectionEnd();
             final int to = Math.max(selStart, selEnd);
-            final int numCharsDeleted = to - from;
+            final int numCharsDeleted = to - Math.min(selStart, selEnd);
             if (selStart <= selEnd) {
                 final CharSequence selection = mConnection.getSelectedText(0);
                 if (!TextUtils.isEmpty(selection)) {
