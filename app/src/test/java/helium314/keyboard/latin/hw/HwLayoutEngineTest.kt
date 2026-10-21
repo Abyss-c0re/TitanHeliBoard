@@ -28,7 +28,8 @@ class HwLayoutEngineTest {
         KeyEvent.KEYCODE_U to letterU,
     ))
     private val numeric = HwKeyboardMapping(mapOf(
-        KeyEvent.KEYCODE_U to HwKeyMapping(listOf(HwKeyValue('1'.code, 0)), emptyList()),
+        KeyEvent.KEYCODE_Q to HwKeyMapping(listOf(HwKeyValue('0'.code, 0)), emptyList()),
+        KeyEvent.KEYCODE_W to HwKeyMapping(listOf(HwKeyValue('1'.code, 0)), emptyList()),
     ))
 
     @Test fun `titan models enable the feature by default`() {
@@ -105,7 +106,7 @@ class HwLayoutEngineTest {
         assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 2, time = 1800), false))
     }
 
-    @Test fun `repeat mode types the letter while sym is held`() {
+    @Test fun `sym types the printed symbol and does not switch layout`() {
         val (prefs, engine) = rig()
         engine.noteField(text("com.example.notes"))
         assertEquals(HwKeyDecision.Pass, engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = 1000), false))
@@ -115,14 +116,27 @@ class HwLayoutEngineTest {
         )
         assertEquals(HwLayouts.ID_EN, prefs.currentId)
         assertEquals(
-            HwKeyDecision.Type('Q'.code, false),
+            HwKeyDecision.Type(';'.code, false),
             engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1200, meta = KeyEvent.META_ALT_RIGHT_ON or KeyEvent.META_SHIFT_ON), false),
         )
         engine.onKeyUp(up(KeyEvent.KEYCODE_SHIFT_LEFT, time = 1300))
-        // Past the multi-tap window, so this is another q and not the shifted "1".
         assertEquals(
-            HwKeyDecision.Type('q'.code, false),
+            HwKeyDecision.Type(':'.code, false),
             engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1700, meta = KeyEvent.META_ALT_RIGHT_ON), false),
+        )
+        assertEquals(
+            HwKeyDecision.Consume,
+            engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 1, time = 2000, meta = KeyEvent.META_ALT_RIGHT_ON), false),
+        )
+    }
+
+    @Test fun `alt types the printed symbol`() {
+        val (_, engine) = rig()
+        engine.noteField(text("com.example.notes"))
+        engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_LEFT, time = 1000), false)
+        assertEquals(
+            HwKeyDecision.Type(':'.code, false),
+            engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1100, meta = KeyEvent.META_ALT_LEFT_ON), false),
         )
     }
 
@@ -169,13 +183,16 @@ class HwLayoutEngineTest {
         )
     }
 
-    @Test fun `holding a letter in symbol mode cycles that layout's symbols`() {
+    @Test fun `holding a letter in symbol mode replaces it once`() {
         val (prefs, engine) = rig()
         prefs.holdForSymbol = true
         engine.noteField(text("com.example.notes"))
         assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1000), false))
         assertEquals(HwKeyDecision.Type(':'.code, true), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 1, time = 1400), false))
-        assertEquals(HwKeyDecision.Type('/'.code, true), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 2, time = 1800), false))
+        assertEquals(HwKeyDecision.Consume, engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 2, time = 1500), false))
+        assertEquals(HwKeyDecision.Consume, engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 4, time = 1600), false))
+        // A later tap, still inside the multi-tap window, walks the next printed symbol.
+        assertEquals(HwKeyDecision.Type('/'.code, true), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1680), false))
     }
 
     @Test fun `a key without a symbol repeats while symbol mode is on`() {
@@ -316,13 +333,13 @@ class HwLayoutEngineTest {
     @Test fun `number fields use the numeric map and still cycle the remembered layout`() {
         val (prefs, engine) = rig()
         engine.noteField(HwField("com.example.notes", InputType.TYPE_CLASS_NUMBER))
-        assertEquals(HwKeyDecision.Type('1'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_U), false))
+        assertEquals(HwKeyDecision.Type('0'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q), false))
         engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_LEFT, time = 1000), false)
         assertEquals(
             HwKeyDecision.Switched(HwLayouts.ID_RU_BBP, false),
             engine.onKeyDown(down(KeyEvent.KEYCODE_SHIFT_LEFT, time = 1100), false),
         )
-        assertEquals(HwKeyDecision.Type('1'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_U, time = 1200), false))
+        assertEquals(HwKeyDecision.Type('1'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_W, time = 1200), false))
         engine.noteField(text("com.example.notes"))
         assertEquals(HwKeyDecision.Type('u'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_U, time = 1500), false))
         assertEquals(HwLayouts.ID_RU_BBP, prefs.currentId)

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Layout switching follows PocketBoard. Free Alt is ALT_LEFT. Sym is ALT_RIGHT.
-// Hold either repeats the key or types the active layout's symbol. A shift that
-// already produced a character does not also stick on release.
+// Hold either repeats the key or, once, replaces it with the symbol printed on
+// that key. Later repeats do not cycle. Alt or Sym types that symbol directly.
+// A shift that already produced a character does not also stick on release.
 package helium314.keyboard.latin.hw
 
 import android.text.InputType
@@ -73,6 +74,8 @@ internal class HwLayoutEngine(
     private var index = 0
     private var seqShift = false
     private var iterating = false
+    /** The letter was replaced by its printed symbol. Further repeats must not rewrite it. */
+    private var symbolLatched = false
 
     fun noteField(next: HwField?) {
         if (next == field) return
@@ -221,11 +224,22 @@ internal class HwLayoutEngine(
         val numeric = HwLayouts.isNumericInputType(current.inputType)
         val layoutId = if (numeric) HwLayouts.ID_NUMERIC else activeLayoutId()
         val key = loadMapping(layoutId)?.get(code) ?: return HwKeyDecision.Pass
-        if (isSym(event) && prefs.holdForSymbol) return onLayoutSymbol(key, event, repeat)
-        if (repeat > 0) return onHeldLetter(key, repeat)
+        if (key.altValues.isNotEmpty() && (isSym(event) || isAltLeftDown(event))) {
+            return onHardwareSymbol(key, event, repeat)
+        }
+        if (repeat > 0) return onHeldLetter(key, time)
 
         val isNew = lastKey != code
         val quick = lastDownAt >= 0L && time - lastDownAt <= prefs.longPressMs
+        if (symbolLatched && !isNew && quick && key.hasAdditional(alt = true)) {
+            index++
+            lastKey = code
+            lastDownAt = time
+            val codePoint = key.get(seqShift, alt = true, index)
+            afterInput()
+            return HwKeyDecision.Type(codePoint, replaceLast = true)
+        }
+        symbolLatched = false
         val continueSeq = iterating && !isNew && quick && key.hasAdditional(alt = false)
         val replace = continueSeq && !numeric
         if (continueSeq) {
@@ -244,25 +258,38 @@ internal class HwLayoutEngine(
         return HwKeyDecision.Type(codePoint, replace)
     }
 
-    /** Repeat the current character, or replace it with the next symbol from this layout. */
-    private fun onHeldLetter(key: HwKeyMapping, repeat: Int): HwKeyDecision {
+    /**
+     * Repeat the current character, or replace it once with the symbol printed on the key.
+     * PocketBoard does that replacement a single time. Cycling on each repeat flickers.
+     */
+    private fun onHeldLetter(key: HwKeyMapping, time: Long): HwKeyDecision {
         if (prefs.holdForSymbol && key.altValues.isNotEmpty()) {
-            val codePoint = key.get(seqShift, alt = true, index = repeat - 1)
+            if (symbolLatched) return HwKeyDecision.Consume
+            symbolLatched = true
+            index = 0
             iterating = false
+            lastDownAt = time
+            val codePoint = key.get(seqShift, alt = true, index = 0)
             afterInput()
             return HwKeyDecision.Type(codePoint, replaceLast = true)
         }
+        symbolLatched = false
         val codePoint = key.get(seqShift, alt = false, index)
         afterInput()
         return HwKeyDecision.Type(codePoint, replaceLast = false)
     }
 
-    /** Sym types the active layout's symbol. Shift uses that symbol's shifted form. */
-    private fun onLayoutSymbol(key: HwKeyMapping, event: KeyEvent, repeat: Int): HwKeyDecision {
+    /** Alt or Sym types the symbol printed on the key. Shift uses that symbol's shifted form. */
+    private fun onHardwareSymbol(key: HwKeyMapping, event: KeyEvent, repeat: Int): HwKeyDecision {
         if (repeat > 0) return HwKeyDecision.Consume
         val shifted = chooseShift(shiftHeld || event.isShiftPressed, shiftMode, autoCap = false)
-        val codePoint = key.get(shifted, alt = key.altValues.isNotEmpty(), index = 0)
-        resetIteration()
+        val codePoint = key.get(shifted, alt = true, index = 0)
+        index = 0
+        seqShift = shifted
+        iterating = false
+        symbolLatched = key.hasAdditional(alt = true)
+        lastKey = event.keyCode
+        lastDownAt = event.eventTime
         afterInput()
         return HwKeyDecision.Type(codePoint, replaceLast = false)
     }
@@ -301,7 +328,11 @@ internal class HwLayoutEngine(
         index = 0
         seqShift = false
         iterating = false
+        symbolLatched = false
     }
+
+    private fun isAltLeftDown(event: KeyEvent): Boolean =
+        altLeftHeld || (event.metaState and KeyEvent.META_ALT_LEFT_ON) != 0
 
     private fun resetTransient() {
         shiftHeld = false

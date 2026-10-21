@@ -11,7 +11,7 @@
     <string name="hw_layout_space_hold">Hold Space to switch layout</string>
     <string name="hw_layout_space_hold_summary">The space inserted at the start of the hold is removed when the layout changes.</string>
     <string name="hw_layout_hold">Hold action</string>
-    <string name="hw_layout_hold_summary">Repeat the key, or type the symbol from the current layout. Sym is Alt Right.</string>
+    <string name="hw_layout_hold_summary">Repeat the key, or replace it once with the symbol printed on that key. Alt or Sym types that symbol.</string>
     <string name="hw_layout_hold_repeat">Repeat keys</string>
     <string name="hw_layout_hold_symbol">Symbol for this layout</string>
     <string name="hw_layout_toast">Show layout name</string>

@@ -4,28 +4,27 @@
   Adapted for TitanHeliBoard hardware layouts.
   SPDX-License-Identifier: GPL-3.0-only
   Source: https://github.com/SinuXVR/pocket-board
+  Titan 2 reports model "Titan 2", so PocketBoard loads the unsuffixed map.
+  Numbers are printed on the left: Q W E R, S D F, X C V.
 -->
 <KeyboardMapping>
     <!-- Q -->
     <Key code="45" value="й" shiftValue="Й">
         <Add value="ц" shiftValue="Ц" />
-        <Alt value=":" />
-        <Alt value=";" />
+        <Alt value="0" />
     </Key>
     <!-- W -->
     <Key code="51" value="у" shiftValue="У">
-        <Alt value="/" />
-        <Alt value="\\" />
+        <Alt value="1" />
     </Key>
     <!-- E -->
     <Key code="33" value="к" shiftValue="К">
-        <Alt value="_" />
+        <Alt value="2" />
     </Key>
     <!-- R -->
     <Key code="46" value="е" shiftValue="Е">
         <Add value="ё" shiftValue="Ё" />
-        <Alt value="-" />
-        <Alt value="~" />
+        <Alt value="3" />
     </Key>
     <!-- T -->
     <Key code="48" value="н" shiftValue="Н">
@@ -44,20 +43,23 @@
     <!-- U -->
     <Key code="49" value="ш" shiftValue="Ш">
         <Add value="щ" shiftValue="Щ" />
-        <Alt value="1" />
+        <Alt value="-" />
+        <Alt value="~" />
     </Key>
     <!-- I -->
     <Key code="37" value="з" shiftValue="З">
-        <Alt value="2" />
+        <Alt value="_" />
     </Key>
     <!-- O -->
     <Key code="43" value="х" shiftValue="Х">
         <Add value="ъ" shiftValue="Ъ" />
-        <Alt value="3" />
+        <Alt value="/" />
+        <Alt value="\\" />
     </Key>
     <!-- P -->
     <Key code="44" value="ю" shiftValue="Ю">
-        <Alt value="0" />
+        <Alt value=":" />
+        <Alt value=";" />
     </Key>
 
     <!-- A -->
@@ -72,20 +74,15 @@
     </Key>
     <!-- S -->
     <Key code="47" value="в" shiftValue="В">
-        <Alt value="&apos;" />
-        <Alt value="`" />
-        <Alt value="^" />
+        <Alt value="4" />
     </Key>
     <!-- D -->
     <Key code="32" value="а" shiftValue="А">
-        <Alt value="&quot;" />
-        <Alt value="«" />
-        <Alt value="»" />
+        <Alt value="5" />
     </Key>
     <!-- F -->
     <Key code="34" value="п" shiftValue="П">
-        <Alt value="+" />
-        <Alt value="±" />
+        <Alt value="6" />
     </Key>
     <!-- G -->
     <Key code="35" value="р" shiftValue="Р">
@@ -101,16 +98,21 @@
     </Key>
     <!-- J -->
     <Key code="38" value="л" shiftValue="Л">
-        <Alt value="4" />
+        <Alt value="+" />
+        <Alt value="±" />
     </Key>
     <!-- K -->
     <Key code="39" value="д" shiftValue="Д">
-        <Alt value="5" />
+        <Alt value="&quot;" />
+        <Alt value="«" />
+        <Alt value="»" />
     </Key>
     <!-- L -->
     <Key code="40" value="ж" shiftValue="Ж">
         <Add value="э" shiftValue="Э" />
-        <Alt value="6" />
+        <Alt value="&apos;" />
+        <Alt value="`" />
+        <Alt value="^" />
     </Key>
 
     <!-- Z -->
@@ -120,26 +122,26 @@
     </Key>
     <!-- X -->
     <Key code="52" value="с" shiftValue="С">
-        <Alt value="?" />
+        <Alt value="7" />
     </Key>
     <!-- C -->
     <Key code="31" value="м" shiftValue="М">
-        <Alt value="," />
+        <Alt value="8" />
     </Key>
     <!-- V -->
     <Key code="50" value="и" shiftValue="И">
-        <Alt value="." />
+        <Alt value="9" />
     </Key>
     <!-- B -->
     <Key code="30" value="т" shiftValue="Т">
-        <Alt value="7" />
+        <Alt value="." />
     </Key>
     <!-- N -->
     <Key code="42" value="ь" shiftValue="Ь">
-        <Alt value="8" />
+        <Alt value="," />
     </Key>
     <!-- M -->
     <Key code="41" value="б" shiftValue="Б">
-        <Alt value="9" />
+        <Alt value="?" />
     </Key>
 </KeyboardMapping>

@@ -24,19 +24,29 @@ class HwMappingParserTest {
         val q = english.get(KeyEvent.KEYCODE_Q)!!
         assertEquals('q'.code, q.get(shift = false, alt = false, index = 0))
         assertEquals('Q'.code, q.get(shift = true, alt = false, index = 0))
-        assertEquals(':'.code, q.get(shift = false, alt = true, index = 0))
-        assertEquals(';'.code, q.get(shift = false, alt = true, index = 1))
-        assertEquals('\\'.code, english.get(KeyEvent.KEYCODE_W)!!.get(shift = false, alt = true, index = 1))
+        // Printed on the left side of the hardware keyboard, not on U I O P.
+        assertEquals('0'.code, q.get(shift = false, alt = true, index = 0))
+        assertEquals('1'.code, english.get(KeyEvent.KEYCODE_W)!!.get(shift = false, alt = true, index = 0))
+        assertEquals('2'.code, english.get(KeyEvent.KEYCODE_E)!!.get(shift = false, alt = true, index = 0))
+        assertEquals('3'.code, english.get(KeyEvent.KEYCODE_R)!!.get(shift = false, alt = true, index = 0))
+        assertEquals('4'.code, english.get(KeyEvent.KEYCODE_S)!!.get(shift = false, alt = true, index = 0))
+        assertEquals('7'.code, english.get(KeyEvent.KEYCODE_X)!!.get(shift = false, alt = true, index = 0))
+        assertEquals('9'.code, english.get(KeyEvent.KEYCODE_V)!!.get(shift = false, alt = true, index = 0))
+        assertEquals('-'.code, english.get(KeyEvent.KEYCODE_U)!!.get(shift = false, alt = true, index = 0))
+        assertEquals(':'.code, english.get(KeyEvent.KEYCODE_P)!!.get(shift = false, alt = true, index = 0))
+        assertEquals('\\'.code, english.get(KeyEvent.KEYCODE_O)!!.get(shift = false, alt = true, index = 1))
 
         val russian = load(context, R.xml.keyboard_mapping_ru_bbp_titan).get(KeyEvent.KEYCODE_Q)!!
         assertEquals('й'.code, russian.get(shift = false, alt = false, index = 0))
         assertEquals('Й'.code, russian.get(shift = true, alt = false, index = 0))
         assertEquals('ц'.code, russian.get(shift = false, alt = false, index = 1))
         assertEquals('Ц'.code, russian.get(shift = true, alt = false, index = 1))
+        assertEquals('0'.code, russian.get(shift = false, alt = true, index = 0))
 
         val numeric = load(context, R.xml.keyboard_mapping_numeric_titan)
-        assertEquals('1'.code, numeric.get(KeyEvent.KEYCODE_U)!!.get(shift = false, alt = false, index = 0))
-        assertEquals('0'.code, numeric.get(KeyEvent.KEYCODE_P)!!.get(shift = false, alt = false, index = 0))
+        assertEquals('0'.code, numeric.get(KeyEvent.KEYCODE_Q)!!.get(shift = false, alt = false, index = 0))
+        assertEquals('1'.code, numeric.get(KeyEvent.KEYCODE_W)!!.get(shift = false, alt = false, index = 0))
+        assertEquals('-'.code, numeric.get(KeyEvent.KEYCODE_U)!!.get(shift = false, alt = false, index = 0))
     }
 
     @Test fun `raw escapes keep at-sign and a real backslash`() {

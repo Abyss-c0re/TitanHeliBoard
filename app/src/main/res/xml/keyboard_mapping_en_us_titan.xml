@@ -4,26 +4,25 @@
   Adapted for TitanHeliBoard hardware layouts.
   SPDX-License-Identifier: GPL-3.0-only
   Source: https://github.com/SinuXVR/pocket-board
+  Titan 2 reports model "Titan 2", so PocketBoard loads the unsuffixed map.
+  Numbers are printed on the left: Q W E R, S D F, X C V.
 -->
 <KeyboardMapping>
     <!-- Q -->
     <Key code="45" value="q" shiftValue="Q">
-        <Alt value=":" />
-        <Alt value=";" />
+        <Alt value="0" />
     </Key>
     <!-- W -->
     <Key code="51" value="w" shiftValue="W">
-        <Alt value="/" />
-        <Alt value="\\" />
+        <Alt value="1" />
     </Key>
     <!-- E -->
     <Key code="33" value="e" shiftValue="E">
-        <Alt value="_" />
+        <Alt value="2" />
     </Key>
     <!-- R -->
     <Key code="46" value="r" shiftValue="R">
-        <Alt value="-" />
-        <Alt value="~" />
+        <Alt value="3" />
     </Key>
     <!-- T -->
     <Key code="48" value="t" shiftValue="T">
@@ -41,19 +40,22 @@
     </Key>
     <!-- U -->
     <Key code="49" value="u" shiftValue="U">
-        <Alt value="1" />
+        <Alt value="-" />
+        <Alt value="~" />
     </Key>
     <!-- I -->
     <Key code="37" value="i" shiftValue="I">
-        <Alt value="2" />
+        <Alt value="_" />
     </Key>
     <!-- O -->
     <Key code="43" value="o" shiftValue="O">
-        <Alt value="3" />
+        <Alt value="/" />
+        <Alt value="\\" />
     </Key>
     <!-- P -->
     <Key code="44" value="p" shiftValue="P">
-        <Alt value="0" />
+        <Alt value=":" />
+        <Alt value=";" />
     </Key>
 
     <!-- A -->
@@ -66,20 +68,15 @@
     </Key>
     <!-- S -->
     <Key code="47" value="s" shiftValue="S">
-        <Alt value="&apos;" />
-        <Alt value="`" />
-        <Alt value="^" />
+        <Alt value="4" />
     </Key>
     <!-- D -->
     <Key code="32" value="d" shiftValue="D">
-        <Alt value="&quot;" />
-        <Alt value="«" />
-        <Alt value="»" />
+        <Alt value="5" />
     </Key>
     <!-- F -->
     <Key code="34" value="f" shiftValue="F">
-        <Alt value="+" />
-        <Alt value="±" />
+        <Alt value="6" />
     </Key>
     <!-- G -->
     <Key code="35" value="g" shiftValue="G">
@@ -95,15 +92,20 @@
     </Key>
     <!-- J -->
     <Key code="38" value="j" shiftValue="J">
-        <Alt value="4" />
+        <Alt value="+" />
+        <Alt value="±" />
     </Key>
     <!-- K -->
     <Key code="39" value="k" shiftValue="K">
-        <Alt value="5" />
+        <Alt value="&quot;" />
+        <Alt value="«" />
+        <Alt value="»" />
     </Key>
     <!-- L -->
     <Key code="40" value="l" shiftValue="L">
-        <Alt value="6" />
+        <Alt value="&apos;" />
+        <Alt value="`" />
+        <Alt value="^" />
     </Key>
 
     <!-- Z -->
@@ -112,26 +114,26 @@
     </Key>
     <!-- X -->
     <Key code="52" value="x" shiftValue="X">
-        <Alt value="?" />
+        <Alt value="7" />
     </Key>
     <!-- C -->
     <Key code="31" value="c" shiftValue="C">
-        <Alt value="," />
+        <Alt value="8" />
     </Key>
     <!-- V -->
     <Key code="50" value="v" shiftValue="V">
-        <Alt value="." />
+        <Alt value="9" />
     </Key>
     <!-- B -->
     <Key code="30" value="b" shiftValue="B">
-        <Alt value="7" />
+        <Alt value="." />
     </Key>
     <!-- N -->
     <Key code="42" value="n" shiftValue="N">
-        <Alt value="8" />
+        <Alt value="," />
     </Key>
     <!-- M -->
     <Key code="41" value="m" shiftValue="M">
-        <Alt value="9" />
+        <Alt value="?" />
     </Key>
 </KeyboardMapping>
