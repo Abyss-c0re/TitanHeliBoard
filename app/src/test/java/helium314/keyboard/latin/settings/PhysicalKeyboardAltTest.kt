@@ -11,6 +11,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
 class PhysicalKeyboardAltTest {
@@ -76,5 +77,43 @@ class PhysicalKeyboardAltTest {
             PhysicalKeyboardAlt.toggledToolbarMode(ToolbarMode.HIDDEN.name, ToolbarMode.HIDDEN.name),
         )
         assertEquals(ToolbarMode.EXPANDABLE.name, PhysicalKeyboardAlt.rememberedToolbarMode("not-a-mode"))
+    }
+
+    @Test fun symbolsPageIsNotTheToolbar() {
+        val showStrip = PhysicalKeyboardAlt.planHardwareToolbarToggle(
+            false, true, false,
+        )
+        assertTrue(showStrip.showPanel)
+        assertTrue(showStrip.leaveSymbols)
+        assertFalse(showStrip.keepAlphabetKeys)
+
+        val hideSymbols = PhysicalKeyboardAlt.planHardwareToolbarToggle(
+            true, true, false,
+        )
+        assertFalse(hideSymbols.showPanel)
+        assertTrue(hideSymbols.leaveSymbols)
+        assertFalse(hideSymbols.keepAlphabetKeys)
+    }
+
+    @Test fun altHidesTheStripAndKeepsOnlyRequestedAlphabetKeys() {
+        val hideStrip = PhysicalKeyboardAlt.planHardwareToolbarToggle(true, false, false)
+        assertFalse(hideStrip.showPanel)
+        assertFalse(hideStrip.leaveSymbols)
+        assertFalse(hideStrip.keepAlphabetKeys)
+
+        val keepKeys = PhysicalKeyboardAlt.planHardwareToolbarToggle(true, false, true)
+        assertFalse(keepKeys.showPanel)
+        assertFalse(keepKeys.leaveSymbols)
+        assertTrue(keepKeys.keepAlphabetKeys)
+
+        val symbolsAreNotLetterKeys = PhysicalKeyboardAlt.planHardwareToolbarToggle(true, true, true)
+        assertFalse(symbolsAreNotLetterKeys.showPanel)
+        assertTrue(symbolsAreNotLetterKeys.leaveSymbols)
+        assertFalse(symbolsAreNotLetterKeys.keepAlphabetKeys)
+
+        val show = PhysicalKeyboardAlt.planHardwareToolbarToggle(false, false, false)
+        assertTrue(show.showPanel)
+        assertFalse(show.leaveSymbols)
+        assertFalse(show.keepAlphabetKeys)
     }
 }

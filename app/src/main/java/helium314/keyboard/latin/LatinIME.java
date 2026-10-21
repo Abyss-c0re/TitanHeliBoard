@@ -760,23 +760,29 @@ public class LatinIME extends InputMethodService implements
     /**
      * Hide the whole hardware panel, or show it again.
      * Folding the toolbar buttons used to leave the suggestion strip on screen.
+     * The symbols keyboard uses the same view as the letter keys. Reloading it put that page back,
+     * so Alt neither hid the panel nor returned the strip.
      */
     public void toggleToolbarFromPhysicalAlt() {
         final SettingsValues values = mSettings.getCurrent();
         if (values == null || values.mIsLocked) return;
-        final boolean panelShown = mKeyboardSwitcher.isHardwarePanelShown();
-        if (panelShown && mKeyboardSwitcher.isShowingEmojiPalettes()) {
+        final boolean chromeShown = mKeyboardSwitcher.isHardwarePanelShown();
+        final boolean symbolsCurrent = mKeyboardSwitcher.hasSymbolsKeyboard();
+        final PhysicalKeyboardAlt.HardwareToolbarToggle plan =
+                PhysicalKeyboardAlt.planHardwareToolbarToggle(
+                        chromeShown, symbolsCurrent, isSystemInputViewRequested());
+        if (chromeShown && mKeyboardSwitcher.isShowingEmojiPalettes()) {
             // Closing emoji while the strip is the reason the window is up stays on the strip.
             // Hide that strip afterwards instead of leaving it behind the buttons.
             mKeyboardSwitcher.onToggleKeyboard(KeyboardSwitcher.KeyboardSwitchState.EMOJI);
-        } else if (panelShown && mKeyboardSwitcher.isShowingClipboardHistory()) {
+        } else if (chromeShown && mKeyboardSwitcher.isShowingClipboardHistory()) {
             mKeyboardSwitcher.onToggleKeyboard(KeyboardSwitcher.KeyboardSwitchState.CLIPBOARD);
         }
         final SharedPreferences prefs = KtxKt.prefs(this);
         final String current = prefs.getString(Settings.PREF_TOOLBAR_MODE, ToolbarMode.EXPANDABLE.name());
         final String saved = prefs.getString(Settings.PREF_PHYSICAL_KEYBOARD_ALT_TOOLBAR_RESTORE, null);
         final SharedPreferences.Editor editor = prefs.edit();
-        if (panelShown) {
+        if (!plan.showPanel) {
             final String remember = PhysicalKeyboardAlt.restoreToRemember(current);
             if (remember != null) {
                 editor.putString(Settings.PREF_PHYSICAL_KEYBOARD_ALT_TOOLBAR_RESTORE, remember);
@@ -787,7 +793,13 @@ public class LatinIME extends InputMethodService implements
         }
         editor.commit();
         mKeyboardSwitcher.updateKeyboardTheme(mDisplayContext);
-        if (!panelShown) {
+        // Mode is already Hidden or restored. Leaving symbols now either closes the window
+        // or lets the strip come back. A later reload must not see this page and restore it.
+        if (plan.leaveSymbols) {
+            mHardwareCandidateBar = false;
+            mKeyboardSwitcher.leaveSymbolsForHardwareToolbar();
+        }
+        if (plan.showPanel) {
             if (!isInputViewShown()) {
                 // Do not use startShowingInputView. That forces the letter keys on for one pass.
                 showWindow(true);
@@ -796,21 +808,39 @@ public class LatinIME extends InputMethodService implements
                 updateInputViewShown();
             }
             final View strip = mKeyboardSwitcher.getStripContainer();
-            if (mKeyboardSwitcher.getMainKeyboardView() != null && (strip == null || !strip.isShown())) {
+            if (!mKeyboardSwitcher.hasSymbolsKeyboard()
+                    && mKeyboardSwitcher.getMainKeyboardView() != null
+                    && (strip == null || !strip.isShown())) {
                 mKeyboardSwitcher.reloadMainKeyboard();
             }
             return;
         }
         // Folding toolbar buttons leaves this strip on screen. Hide the strip itself.
         mHardwareCandidateBar = false;
-        final View letters = mKeyboardSwitcher.getMainKeyboardView();
-        if (letters != null && letters.isShown()) {
-            // Letter keys were requested. Remove the strip and leave those keys.
-            mKeyboardSwitcher.reloadMainKeyboard();
+        if (plan.keepAlphabetKeys && !mKeyboardSwitcher.hasSymbolsKeyboard()) {
+            final View letters = mKeyboardSwitcher.getMainKeyboardView();
+            if (letters != null && letters.isShown()) {
+                // The system asked for a soft keyboard. Remove the strip and leave those keys.
+                mKeyboardSwitcher.reloadMainKeyboard();
+                return;
+            }
+        }
+        if (!isInputViewShown()) {
+            // Leaving symbols already closed the window.
+            if (mInputView != null) {
+                mInputView.requestLayout();
+            }
             return;
         }
+        if (isSystemInputViewRequested() && !mKeyboardSwitcher.hasSymbolsKeyboard()) {
+            final View letters = mKeyboardSwitcher.getMainKeyboardView();
+            if (letters != null && letters.isShown()) {
+                return;
+            }
+        }
         mKeyboardSwitcher.hideHardwareCandidatePanel();
-        // Toolbar mode is Hidden, so onEvaluate is false and this drops the whole input frame.
+        // Toolbar mode is Hidden and the symbols page is gone, so onEvaluate is false
+        // and this drops the whole input frame. A symbols element would keep that frame up.
         updateInputViewShown();
         if (isInputViewShown()) {
             // hideWindow() alone leaves the show request set. The decor is then put back,

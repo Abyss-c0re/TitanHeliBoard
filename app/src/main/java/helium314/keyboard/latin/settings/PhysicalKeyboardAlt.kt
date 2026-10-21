@@ -77,6 +77,38 @@ object PhysicalKeyboardAlt {
         return rememberedToolbarMode(current)
     }
 
+    /**
+     * What Alt does to the hardware panel.
+     * The symbols keyboard is not the toolbar. A reload would put that page back,
+     * so it has to be cleared on the way to the strip and on the way to a closed window.
+     * Alphabet keys stay only when the system asked for a soft keyboard.
+     */
+    class HardwareToolbarToggle(
+        @JvmField val showPanel: Boolean,
+        @JvmField val leaveSymbols: Boolean,
+        @JvmField val keepAlphabetKeys: Boolean,
+    )
+
+    @JvmStatic
+    fun planHardwareToolbarToggle(
+        chromeShown: Boolean,
+        symbolsCurrent: Boolean,
+        systemSoftKeyboard: Boolean,
+    ): HardwareToolbarToggle {
+        if (!chromeShown) {
+            return HardwareToolbarToggle(
+                showPanel = true,
+                leaveSymbols = symbolsCurrent,
+                keepAlphabetKeys = false,
+            )
+        }
+        return HardwareToolbarToggle(
+            showPanel = false,
+            leaveSymbols = symbolsCurrent,
+            keepAlphabetKeys = systemSoftKeyboard && !symbolsCurrent,
+        )
+    }
+
     @JvmStatic
     fun normalize(value: String?): String = when (value) {
         EMOJI, TOOLBAR -> value

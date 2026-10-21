@@ -400,10 +400,21 @@ public final class KeyboardSwitcher {
         mLatinIME.toggleToolbarFromPhysicalAlt();
     }
 
-    /** The suggestion strip, emoji, or clipboard is on screen. Toolbar buttons alone are not the panel. */
+    /** The suggestion strip, emoji, or clipboard is on screen. The symbols keyboard is not this panel. */
     public boolean isHardwarePanelShown() {
         if (isShowingEmojiPalettes() || isShowingClipboardHistory()) return true;
         return mStripContainer != null && mStripContainer.isShown();
+    }
+
+    /**
+     * Drop the symbols page before Alt shows or hides the toolbar.
+     * [reloadMainKeyboard] would put that page back.
+     * Hidden dismisses the window from here. A restored toolbar mode shows the strip.
+     */
+    public void leaveSymbolsForHardwareToolbar() {
+        if (mState == null || !hasSymbolsKeyboard()) return;
+        mState.forceAlphabetKeyboard(
+                mLatinIME.getCurrentAutoCapsState(), mLatinIME.getCurrentRecapitalizeState());
     }
 
     /** Remove the strip and every panel in it. Letter keys stay untouched until the caller hides or reloads. */

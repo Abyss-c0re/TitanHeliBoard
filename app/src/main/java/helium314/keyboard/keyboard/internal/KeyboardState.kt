@@ -301,6 +301,15 @@ class KeyboardState(private val switchActions: SwitchActions) {
         resetToAlpha(autoCapsFlags, recapitalizeMode)
     }
 
+    /**
+     * Leave the symbols layout even when this state already says alphabet.
+     * [resetToAlpha] returns immediately in that case, and the view can still be symbols.
+     */
+    fun forceAlphabetKeyboard(autoCapsFlags: Int, recapitalizeMode: RecapitalizeMode?) {
+        prevLayouts.wipe()
+        loadLayout(Alphabet(shiftMode, autoCapsFlags, recapitalizeMode))
+    }
+
     private fun updateAlphabetShiftState(autoCapsFlags: Int, recapitalizeMode: RecapitalizeMode?) {
         if (mode != Mode.ALPHABET) return
         if (recapitalizeMode != null) {
