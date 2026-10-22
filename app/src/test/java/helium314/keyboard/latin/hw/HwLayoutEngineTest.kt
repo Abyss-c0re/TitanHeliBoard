@@ -336,6 +336,79 @@ class HwLayoutEngineTest {
         assertEquals(HwKeyDecision.Type('Q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1400), false))
     }
 
+    @Test fun `double tap sym locks the printed symbol`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = true
+        engine.noteField(text("com.example.notes"))
+        assertEquals(HwKeyDecision.Symbols, tapSym(engine, 1000))
+        assertEquals(HwKeyDecision.SymbolLock, tapSym(engine, 1100))
+        assertEquals(HwKeyDecision.Type(':'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1500), false))
+        assertEquals(HwKeyDecision.Type('a'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_A, time = 1900), false))
+        assertEquals(HwKeyDecision.Type(':'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 2300), false))
+        assertEquals(
+            HwKeyDecision.Type(':'.code, false),
+            engine.onKeyDown(down(KeyEvent.KEYCODE_Q, repeat = 1, time = 2600), false),
+        )
+    }
+
+    @Test fun `sym lock uses the shifted printed symbol`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = true
+        engine.noteField(text("com.example.notes"))
+        tapSym(engine, 1000)
+        tapSym(engine, 1100)
+        tapShift(engine, 1400)
+        assertEquals(HwKeyDecision.Type(';'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1600), false))
+    }
+
+    @Test fun `a sym tap while locked unlocks`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = true
+        engine.noteField(text("com.example.notes"))
+        tapSym(engine, 1000)
+        tapSym(engine, 1100)
+        assertEquals(HwKeyDecision.SymbolUnlock, tapSym(engine, 2000))
+        assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 2300), false))
+    }
+
+    @Test fun `a letter between sym taps does not lock`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = true
+        engine.noteField(text("com.example.notes"))
+        assertEquals(HwKeyDecision.Symbols, tapSym(engine, 1000))
+        assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1150), false))
+        assertEquals(HwKeyDecision.Symbols, tapSym(engine, 1250))
+        assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1600), false))
+    }
+
+    @Test fun `a slow second sym tap does not lock`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = true
+        engine.noteField(text("com.example.notes"))
+        assertEquals(HwKeyDecision.Symbols, tapSym(engine, 1000))
+        assertEquals(HwKeyDecision.Symbols, tapSym(engine, 1400))
+        assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1800), false))
+    }
+
+    @Test fun `sym lock turns off when the field changes`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = true
+        engine.noteField(text("com.example.notes"))
+        tapSym(engine, 1000)
+        tapSym(engine, 1100)
+        engine.noteField(text("com.example.other"))
+        assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1500), false))
+    }
+
+    @Test fun `double tap sym does not lock when the symbols switch is off`() {
+        val (prefs, engine) = rig()
+        prefs.symOpensSymbols = false
+        engine.noteField(text("com.example.notes"))
+        assertEquals(HwKeyDecision.Pass, tapSym(engine, 1000))
+        assertEquals(HwKeyDecision.Pass, tapSym(engine, 1100))
+        assertEquals(HwKeyDecision.Type('q'.code, false), engine.onKeyDown(down(KeyEvent.KEYCODE_Q, time = 1400), false))
+    }
+
     @Test fun `alt then shift switches once and does not stick`() {
         val (_, engine) = rig()
         engine.noteField(text("com.example.notes"))
@@ -500,6 +573,11 @@ class HwLayoutEngineTest {
     private fun tapShift(engine: HwLayoutEngine, time: Long) {
         engine.onKeyDown(down(KeyEvent.KEYCODE_SHIFT_LEFT, time = time), false)
         engine.onKeyUp(up(KeyEvent.KEYCODE_SHIFT_LEFT, time = time + 40))
+    }
+
+    private fun tapSym(engine: HwLayoutEngine, time: Long): HwKeyDecision {
+        engine.onKeyDown(down(KeyEvent.KEYCODE_ALT_RIGHT, time = time), false)
+        return engine.onKeyUp(up(KeyEvent.KEYCODE_ALT_RIGHT, time = time + 40))
     }
 
     private fun down(code: Int, repeat: Int = 0, meta: Int = 0, time: Long = 0L) =

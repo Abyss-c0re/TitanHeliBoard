@@ -90,6 +90,11 @@ public final class KeyboardSwitcher {
     private KeyboardLayoutSet mKeyboardLayoutSet;
     /** reloadMainKeyboard restores symbols after the alphabet load. That load must not hide the window. */
     private boolean mReloadingMainKeyboard;
+    /** Double-tap Sym. Space must not leave this symbols page, and keys type the printed symbol. */
+    private boolean mHardwareSymbolsLocked;
+    /** Set while opening the locked symbols page, so that open does not clear the lock it just took. */
+    private boolean mApplyingHardwareSymbolLock;
+    @Nullable private Runnable mOnHardwareSymbolLockCleared;
 
     private KeyboardTheme mKeyboardTheme;
     private Context mThemeContext;
@@ -537,6 +542,54 @@ public final class KeyboardSwitcher {
             resetKeyboardStateToAlphabet();
             return;
         }
+        openSymbolsFromPhysicalSym();
+    }
+
+    /** Second tap of a Sym double-tap. Keeps the symbols page up. */
+    public void lockSymbolsFromPhysicalSym() {
+        mApplyingHardwareSymbolLock = true;
+        try {
+            mHardwareSymbolsLocked = true;
+            if (!isShowingSymbolsKeyboard() && !hasSymbolsKeyboard()) {
+                openSymbolsFromPhysicalSym();
+            }
+        } finally {
+            mApplyingHardwareSymbolLock = false;
+        }
+    }
+
+    /** A later Sym tap drops the lock and leaves the symbols page. */
+    public void unlockSymbolsFromPhysicalSym() {
+        mHardwareSymbolsLocked = false;
+        if (isShowingSymbolsKeyboard() || hasSymbolsKeyboard()) {
+            resetKeyboardStateToAlphabet();
+        }
+    }
+
+    public boolean isHardwareSymbolsLocked() {
+        return mHardwareSymbolsLocked;
+    }
+
+    /** The field changed. The engine already dropped its lock. */
+    public void clearHardwareSymbolsLock() {
+        mHardwareSymbolsLocked = false;
+    }
+
+    public void setOnHardwareSymbolLockCleared(@Nullable final Runnable listener) {
+        mOnHardwareSymbolLockCleared = listener;
+    }
+
+    /**
+     * The symbols page is going away on its own.
+     * Tell the hardware layout to stop typing printed symbols.
+     */
+    public void onHardwareSymbolsLeft() {
+        if (mApplyingHardwareSymbolLock) return;
+        mHardwareSymbolsLocked = false;
+        if (mOnHardwareSymbolLockCleared != null) mOnHardwareSymbolLockCleared.run();
+    }
+
+    private void openSymbolsFromPhysicalSym() {
         // isShowingSymbolsKeyboard() is false until the input frame is visible.
         // Hold that frame open across the gap, including a Hidden toolbar.
         mLatinIME.setOpeningHardwareSymbols(true);

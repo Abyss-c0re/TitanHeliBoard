@@ -12,7 +12,7 @@ Hardware layouts turn on when the device model contains "titan". The maps are ad
 
 - Layouts are English (US), Russian, and Spanish (Spain). Russian is the BlackBerry Passport layout. Alt+Shift, or holding Space, switches layout. The space typed at the start of a hold is removed when the layout changes.
 - The hold action in hardware layout settings either repeats the key, or types the symbol printed on that key for the current layout.
-- Sym is the right Alt key. A short press opens the on-screen symbols keyboard, including while the toolbar is hidden. Press Sym again to close it. Holding Sym with another key still types the symbol printed on that key.
+- Sym is the right Alt key. A short press opens the on-screen symbols keyboard, including while the toolbar is hidden. Double-tap Sym to lock symbols, the way double-tap Shift locks capitals: keys type the symbol printed on them, and the symbols keyboard stays up, until Sym is pressed again. Holding Sym with another key still types that printed symbol.
 - Left Alt follows the Physical keyboard Alt setting: Nothing, Emojis, or Toggle the toolbar. Toggle hides the whole panel, or shows it again.
 - Keys stay raw unless a text field has a real text session. Games, emulators, and fields that do not request text are left alone.
 - Suggestions, the spell-check underline, and the toolbar work while typing on the hardware keyboard. Backspace deletes a selection.

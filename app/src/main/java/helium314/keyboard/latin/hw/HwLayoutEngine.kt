@@ -3,6 +3,7 @@
 // Hold either repeats the key or, once, replaces it with the symbol printed on
 // that key. Later repeats do not cycle. Alt or Sym types that symbol directly.
 // A shift that already produced a character does not also stick on release.
+// Double-tap Shift locks capitals. Double-tap Sym locks symbols the same way.
 package helium314.keyboard.latin.hw
 
 import android.text.InputType
@@ -50,6 +51,10 @@ internal sealed class HwKeyDecision {
     data object Enter : HwKeyDecision()
     /** A short press of Sym, with no other key, opens or closes the symbols keyboard. */
     data object Symbols : HwKeyDecision()
+    /** The second tap of a Sym double-tap. Symbols stay up, and keys type the printed symbol. */
+    data object SymbolLock : HwKeyDecision()
+    /** A Sym tap while symbols are locked. Drops the lock. */
+    data object SymbolUnlock : HwKeyDecision()
     data class Type(val codePoint: Int, val replaceLast: Boolean) : HwKeyDecision()
     data class Delete(val word: Boolean, val repeat: Boolean) : HwKeyDecision()
     data class Switched(val layoutId: String, val undoSpace: Boolean) : HwKeyDecision()
@@ -81,6 +86,8 @@ internal class HwLayoutEngine(
     private var symDownAt = -1L
     /** True until another key, a repeat, or a long hold shows this Sym press is not a tap. */
     private var symTapArmed = false
+    private var symMode = HwModifierMode.OFF
+    private var lastSymUpAt = -1L
     private var shiftMode = HwModifierMode.OFF
     private var shiftPressAt = -1L
     private var lastShiftUpAt = -1L
@@ -95,10 +102,18 @@ internal class HwLayoutEngine(
     /** The letter was replaced by its printed symbol. Further repeats must not rewrite it. */
     private var symbolLatched = false
 
-    fun noteField(next: HwField?) {
-        if (next == field) return
+    /** @return true when the field changed and transient state, including symbol lock, was cleared. */
+    fun noteField(next: HwField?): Boolean {
+        if (next == field) return false
         field = next
         resetTransient()
+        return true
+    }
+
+    /** The symbols page was left by something other than this engine. Drop the lock. */
+    fun clearSymbolLock() {
+        symMode = HwModifierMode.OFF
+        lastSymUpAt = -1L
     }
 
     fun onKeyDown(event: KeyEvent, autoCap: Boolean): HwKeyDecision {
@@ -110,6 +125,7 @@ internal class HwLayoutEngine(
         // No editor, or a field that does not take text: leave every key raw.
         if (current == null || current.inputType == InputType.TYPE_NULL) {
             symTapArmed = false
+            lastSymUpAt = -1L
             return HwKeyDecision.Pass
         }
         val code = event.keyCode
@@ -119,9 +135,14 @@ internal class HwLayoutEngine(
         // when a field exists but the session has not started.
         if (!current.inputForced && !symWhileWindowHidden(code)) {
             symTapArmed = false
+            lastSymUpAt = -1L
             return HwKeyDecision.Pass
         }
-        if (!isAltRight(code)) symTapArmed = false
+        // Another key ends the double-tap window, the same way a letter ends a shift double-tap.
+        if (!isAltRight(code)) {
+            symTapArmed = false
+            lastSymUpAt = -1L
+        }
         if (isShift(code)) return onShiftDown(event, time, repeat)
         if (isAltLeft(code)) return onAltLeftDown(event, repeat)
         if (isAltRight(code)) return onSymDown(event, repeat)
@@ -244,8 +265,21 @@ internal class HwLayoutEngine(
         symHeld = false
         symTapArmed = false
         symDownAt = -1L
-        if (!openSymbols || !armed || !prefs.symOpensSymbols || downAt < 0L) return HwKeyDecision.Pass
-        if (time - downAt >= prefs.longPressMs) return HwKeyDecision.Pass
+        if (!openSymbols || !armed || !prefs.symOpensSymbols || downAt < 0L || time - downAt >= prefs.longPressMs) {
+            lastSymUpAt = -1L
+            return HwKeyDecision.Pass
+        }
+        // Same window as caps lock: the second short tap locks, a later single tap unlocks.
+        val doubleTap = lastSymUpAt >= 0L && time - lastSymUpAt < prefs.longPressMs
+        lastSymUpAt = time
+        if (doubleTap) {
+            symMode = HwModifierMode.LOCK
+            return HwKeyDecision.SymbolLock
+        }
+        if (symMode == HwModifierMode.LOCK) {
+            symMode = HwModifierMode.OFF
+            return HwKeyDecision.SymbolUnlock
+        }
         return HwKeyDecision.Symbols
     }
 
@@ -292,10 +326,14 @@ internal class HwLayoutEngine(
         val numeric = HwLayouts.isNumericInputType(current.inputType)
         val layoutId = if (numeric) HwLayouts.ID_NUMERIC else activeLayoutId()
         val key = loadMapping(layoutId)?.get(code) ?: return HwKeyDecision.Pass
+        val symbolLocked = symMode == HwModifierMode.LOCK
         if (key.altValues.isNotEmpty() && (isSym(event) || isAltLeftDown(event))) {
             return onHardwareSymbol(key, event, repeat)
         }
-        if (repeat > 0) return onHeldLetter(key, time)
+        if (repeat > 0) {
+            if (symbolLocked && key.altValues.isNotEmpty()) return onHardwareSymbol(key, event, repeat)
+            return onHeldLetter(key, time)
+        }
 
         val isNew = lastKey != code
         val quick = lastDownAt >= 0L && time - lastDownAt <= prefs.longPressMs
@@ -307,6 +345,7 @@ internal class HwLayoutEngine(
             afterInput()
             return HwKeyDecision.Type(codePoint, replaceLast = true)
         }
+        if (symbolLocked && key.altValues.isNotEmpty()) return onHardwareSymbol(key, event, repeat)
         symbolLatched = false
         val continueSeq = iterating && !isNew && quick && key.hasAdditional(alt = false)
         val replace = continueSeq && !numeric
@@ -349,8 +388,16 @@ internal class HwLayoutEngine(
 
     /** Alt or Sym types the symbol printed on the key. Shift uses that symbol's shifted form. */
     private fun onHardwareSymbol(key: HwKeyMapping, event: KeyEvent, repeat: Int): HwKeyDecision {
-        if (repeat > 0) return HwKeyDecision.Consume
         val shifted = chooseShift(shiftHeld || event.isShiftPressed, shiftMode, autoCap = false)
+        if (repeat > 0) {
+            // A held Sym still types once. Symbol lock repeats, the way caps lock repeats.
+            if (symMode != HwModifierMode.LOCK || isSym(event) || isAltLeftDown(event)) {
+                return HwKeyDecision.Consume
+            }
+            val repeated = key.get(shifted, alt = true, index)
+            afterInput()
+            return HwKeyDecision.Type(repeated, replaceLast = false)
+        }
         val codePoint = key.get(shifted, alt = true, index = 0)
         index = 0
         seqShift = shifted
@@ -408,6 +455,8 @@ internal class HwLayoutEngine(
         symHeld = false
         symDownAt = -1L
         symTapArmed = false
+        symMode = HwModifierMode.OFF
+        lastSymUpAt = -1L
         shiftMode = HwModifierMode.OFF
         shiftTyped = false
         shiftChord = false

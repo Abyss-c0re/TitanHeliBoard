@@ -143,6 +143,7 @@ class KeyboardState(private val switchActions: SwitchActions) {
         if (DebugFlags.DEBUG_ENABLED) {
             Log.d(TAG, "resetToAlpha: ${stateToString(autoCapsFlags, recapitalizeMode)}")
         }
+        leaveHardwareSymbolLock()
         prevLayouts.wipe()
         if (mode == Mode.ALPHABET) {
             return
@@ -306,8 +307,17 @@ class KeyboardState(private val switchActions: SwitchActions) {
      * [resetToAlpha] returns immediately in that case, and the view can still be symbols.
      */
     fun forceAlphabetKeyboard(autoCapsFlags: Int, recapitalizeMode: RecapitalizeMode?) {
+        // Toolbar toggle drops the symbols page. The hardware symbol lock stays, like caps lock.
+        KeyboardSwitcher.getInstance().clearHardwareSymbolsLock()
         prevLayouts.wipe()
         loadLayout(Alphabet(shiftMode, autoCapsFlags, recapitalizeMode))
+    }
+
+    /** A locked Sym page stays. Leaving that page drops the lock. */
+    private fun leaveHardwareSymbolLock() {
+        if (mode == Mode.SYMBOLS || mode == Mode.SYMBOLS_SHIFTED) {
+            KeyboardSwitcher.getInstance().onHardwareSymbolsLeft()
+        }
     }
 
     private fun updateAlphabetShiftState(autoCapsFlags: Int, recapitalizeMode: RecapitalizeMode?) {
@@ -463,7 +473,9 @@ class KeyboardState(private val switchActions: SwitchActions) {
             Log.d(TAG, "onEvent: code=${Constants.printableCode(code)} ${stateToString(autoCapsFlags, recapitalizeMode)}")
         }
 
-        if (mode in Settings.getValues().mAlphaAfterSpace) {
+        if (mode in Settings.getValues().mAlphaAfterSpace
+            && !KeyboardSwitcher.getInstance().isHardwareSymbolsLocked
+        ) {
             if (isSpaceOrEnter(code)) {
                 if (isInSpaceToAlpha) {
                     resetToAlpha(autoCapsFlags, recapitalizeMode)

@@ -38,13 +38,28 @@ internal class HwLayoutController(private val latinIME: LatinIME) {
     private val maps = HashMap<String, HwKeyboardMapping?>()
     private val engine = HwLayoutEngine(store, ::loadMapping)
     private val consumedDown = HashSet<Int>()
+    /** A Sym tap that would close the symbols page, waiting to see if the next tap locks it. */
+    private var pendingSym: Runnable? = null
+
+    init {
+        KeyboardSwitcher.getInstance().setOnHardwareSymbolLockCleared {
+            engine.clearSymbolLock()
+            cancelPendingSym()
+        }
+    }
 
     /** Hardware layouts are handling keys for this field. */
     fun isActive(): Boolean = store.enabled
 
     fun onKeyDown(keyCode: Int, event: KeyEvent): HwDispatch {
         val field = currentField()
-        engine.noteField(field)
+        if (engine.noteField(field)) {
+            cancelPendingSym()
+            KeyboardSwitcher.getInstance().clearHardwareSymbolsLock()
+        } else if (keyCode != KeyEvent.KEYCODE_ALT_RIGHT) {
+            // A letter confirms the Sym tap was single. Run a delayed close before that letter.
+            flushPendingSym()
+        }
         val autoCap = if (field != null) {
             runCatching { latinIME.currentAutoCapsState != 0 }.getOrDefault(false)
         } else {
@@ -55,12 +70,46 @@ internal class HwLayoutController(private val latinIME: LatinIME) {
 
     fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         val field = currentField()
-        engine.noteField(field)
+        if (engine.noteField(field)) {
+            cancelPendingSym()
+            KeyboardSwitcher.getInstance().clearHardwareSymbolsLock()
+        }
         val decision = engine.onKeyUp(event)
         val consumedEarlier = consumedDown.remove(keyCode)
-        if (decision is HwKeyDecision.Symbols) {
-            KeyboardSwitcher.getInstance().toggleSymbolsFromPhysicalSym()
-            return true
+        when (decision) {
+            HwKeyDecision.Symbols -> {
+                val switcher = KeyboardSwitcher.getInstance()
+                if (switcher.isShowingSymbolsKeyboard()) {
+                    // The second tap of a double-tap must lock, not close. Wait out that window.
+                    scheduleSym {
+                        if (switcher.isShowingSymbolsKeyboard()) switcher.toggleSymbolsFromPhysicalSym()
+                    }
+                } else {
+                    cancelPendingSym()
+                    try {
+                        switcher.toggleSymbolsFromPhysicalSym()
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "symbols keyboard failed", t)
+                    }
+                }
+                return true
+            }
+            HwKeyDecision.SymbolLock -> {
+                try {
+                    cancelPendingSym()
+                    KeyboardSwitcher.getInstance().lockSymbolsFromPhysicalSym()
+                    showSymLockToast()
+                } catch (t: Throwable) {
+                    Log.e(TAG, "symbol lock failed", t)
+                }
+                return true
+            }
+            HwKeyDecision.SymbolUnlock -> {
+                // Same window as the lock, so a second tap can keep the lock instead of closing it.
+                scheduleSym { KeyboardSwitcher.getInstance().unlockSymbolsFromPhysicalSym() }
+                return true
+            }
+            else -> Unit
         }
         return consumedEarlier
     }
@@ -102,7 +151,9 @@ internal class HwLayoutController(private val latinIME: LatinIME) {
                 finish(keyCode, event.repeatCount, consume = true)
             }
         }
-        HwKeyDecision.Symbols -> finish(keyCode, event.repeatCount, consume = true)
+        HwKeyDecision.Symbols,
+        HwKeyDecision.SymbolLock,
+        HwKeyDecision.SymbolUnlock -> finish(keyCode, event.repeatCount, consume = true)
         HwKeyDecision.Enter -> {
             if (!canCommit()) finish(keyCode, event.repeatCount, consume = false)
             else {
@@ -156,6 +207,37 @@ internal class HwLayoutController(private val latinIME: LatinIME) {
         } catch (t: RuntimeException) {
             Log.w(TAG, "subtype sync skipped", t)
         }
+    }
+
+    private fun scheduleSym(action: () -> Unit) {
+        cancelPendingSym()
+        val task = Runnable {
+            pendingSym = null
+            try {
+                action()
+            } catch (t: Throwable) {
+                Log.e(TAG, "symbol key failed", t)
+            }
+        }
+        pendingSym = task
+        latinIME.mHandler.postDelayed(task, store.longPressMs.toLong())
+    }
+
+    private fun flushPendingSym() {
+        val task = pendingSym ?: return
+        pendingSym = null
+        latinIME.mHandler.removeCallbacks(task)
+        task.run()
+    }
+
+    private fun cancelPendingSym() {
+        val task = pendingSym ?: return
+        pendingSym = null
+        latinIME.mHandler.removeCallbacks(task)
+    }
+
+    private fun showSymLockToast() {
+        KeyboardSwitcher.getInstance().showToast(latinIME.getString(R.string.hw_sym_locked), true)
     }
 
     private fun showLayoutToast(layoutId: String) {
